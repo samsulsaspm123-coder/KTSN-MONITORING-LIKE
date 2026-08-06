@@ -1,0 +1,6 @@
+{
+  "name": "Sistem Monitoring Like Instagram Karyawan Retail",
+  "description": "Aplikasi Web & Google Apps Script terintegrasi Google Sheets untuk pemantauan like Instagram karyawan retail, deteksi denda otomatis per divisi, dan generator rekap pesan WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
