@@ -8,6 +8,8 @@ export interface Employee {
   username2?: string;
   status: EmployeeStatus;
   keterangan?: string;
+  hasMetDailyQuota?: boolean; // Indikator apakah karyawan sudah memenuhi kuota like harian
+  dailyLikesCount?: number; // Jumlah like hari ini (misal 0 s/d 7)
 }
 
 export interface EmployeeCheckResult {
@@ -55,3 +57,49 @@ export interface SheetConfig {
   autoSync: boolean;
   lastSync?: string;
 }
+
+export type FontFamilyId =
+  | 'jakarta'
+  | 'inter'
+  | 'poppins'
+  | 'outfit'
+  | 'dmsans'
+  | 'nunito'
+  | 'lexend'
+  | 'sora'
+  | 'jetbrains';
+
+export type FontSizeScale = 'compact' | 'normal' | 'comfortable' | 'large';
+
+export interface FontOption {
+  id: FontFamilyId;
+  name: string;
+  category: string;
+  cssFamily: string;
+  sample: string;
+  description: string;
+  tag?: string;
+}
+
+export type SocialPlatform = 'IG' | 'FB' | 'TIKTOK' | 'YOUTUBE' | 'THREAD' | 'OTHER';
+
+export type PostContentType = 'Foto / Feed' | 'Reel / Video' | 'Carousel' | 'Story' | 'VT (Video TikTok)';
+
+export type TimeSlot = 'Pagi' | 'Siang' | 'Sore / Malam' | 'Custom';
+
+export interface SosmedPostItem {
+  id: string;
+  platform: SocialPlatform;
+  contentType: PostContentType;
+  timeSlot: TimeSlot;
+  storeName: string; // e.g. "MEGA KTSN"
+  title: string; // e.g. "GODA LEMON" or "PERBEDAAN MESIN CUCI"
+  url: string; // e.g. "https://www.instagram.com/p/DbsEJpwmnYy/"
+  screenshotUrl?: string; // base64 data url from clipboard or file
+  screenshotFileName?: string;
+  notes?: string;
+  isCompleted: boolean;
+  order: number;
+}
+
+

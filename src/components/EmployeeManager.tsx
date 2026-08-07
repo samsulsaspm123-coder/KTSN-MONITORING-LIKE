@@ -29,6 +29,8 @@ export function EmployeeManager({ employees, setEmployees, onNavigateToRekap }: 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDivisi, setSelectedDivisi] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedQuotaFilter, setSelectedQuotaFilter] = useState<'ALL' | 'UNMET' | 'MET' | 'EXEMPT'>('ALL');
+  const [dailyQuotaTarget, setDailyQuotaTarget] = useState<number>(7);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -239,6 +241,25 @@ export function EmployeeManager({ employees, setEmployees, onNavigateToRekap }: 
     }
   };
 
+  // Quota and status stats
+  const quotaStats = useMemo(() => {
+    const totalStaff = employees.length;
+    const normalStaff = employees.filter((e) => e.status === 'Normal');
+    const unmetQuota = employees.filter((e) => e.status === 'Normal' && !e.hasMetDailyQuota);
+    const metQuota = employees.filter((e) => e.status === 'Normal' && Boolean(e.hasMetDailyQuota));
+    const exemptStaff = employees.filter((e) => e.status !== 'Normal');
+
+    return {
+      totalStaff,
+      normalCount: normalStaff.length,
+      unmetCount: unmetQuota.length,
+      metCount: metQuota.length,
+      exemptCount: exemptStaff.length,
+      unmetPercent: normalStaff.length > 0 ? Math.round((unmetQuota.length / normalStaff.length) * 100) : 0,
+      metPercent: normalStaff.length > 0 ? Math.round((metQuota.length / normalStaff.length) * 100) : 0,
+    };
+  }, [employees]);
+
   // Divisions list
   const divisionList = useMemo(() => {
     const set = new Set<string>();
@@ -246,7 +267,7 @@ export function EmployeeManager({ employees, setEmployees, onNavigateToRekap }: 
     return Array.from(set).sort();
   }, [employees]);
 
-  // Filtered employees
+  // Filtered employees including Quota Filter
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
       const matchQuery =
@@ -258,9 +279,38 @@ export function EmployeeManager({ employees, setEmployees, onNavigateToRekap }: 
       const matchDiv = selectedDivisi === 'ALL' || emp.divisi === selectedDivisi;
       const matchStatus = selectedStatus === 'ALL' || emp.status === selectedStatus;
 
-      return matchQuery && matchDiv && matchStatus;
+      let matchQuota = true;
+      if (selectedQuotaFilter === 'UNMET') {
+        matchQuota = emp.status === 'Normal' && !emp.hasMetDailyQuota;
+      } else if (selectedQuotaFilter === 'MET') {
+        matchQuota = emp.status === 'Normal' && Boolean(emp.hasMetDailyQuota);
+      } else if (selectedQuotaFilter === 'EXEMPT') {
+        matchQuota = emp.status !== 'Normal';
+      }
+
+      return matchQuery && matchDiv && matchStatus && matchQuota;
     });
-  }, [employees, searchQuery, selectedDivisi, selectedStatus]);
+  }, [employees, searchQuery, selectedDivisi, selectedStatus, selectedQuotaFilter]);
+
+  // Toggle single employee quota
+  const handleToggleEmployeeQuota = (id: string) => {
+    setEmployees(
+      employees.map((emp) =>
+        emp.id === id
+          ? { ...emp, hasMetDailyQuota: !emp.hasMetDailyQuota }
+          : emp
+      )
+    );
+  };
+
+  // Bulk mark normal employees as met quota
+  const handleMarkAllMetQuota = (isMet: boolean) => {
+    setEmployees(
+      employees.map((emp) =>
+        emp.status === 'Normal' ? { ...emp, hasMetDailyQuota: isMet } : emp
+      )
+    );
+  };
 
   // Open modal for add
   const handleOpenAdd = () => {
@@ -439,10 +489,10 @@ export function EmployeeManager({ employees, setEmployees, onNavigateToRekap }: 
             </span>
           </div>
           <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-1 tracking-tight">
-            Daftar &amp; Status Karyawan Retail
+            Daftar, Status &amp; Target Kuota Like Karyawan
           </h2>
           <p className="text-xs text-slate-500 max-w-2xl">
-            Kelola data divisi, nama, username Instagram (utama &amp; cadangan), serta status kehadiran (Normal, Cuti, Off, dll).
+            Kelola data divisi, nama, username Instagram, status kehadiran, serta indikator kepatuhan kuota like harian berdasarkan target sistem.
           </p>
         </div>
 
@@ -499,10 +549,167 @@ export function EmployeeManager({ employees, setEmployees, onNavigateToRekap }: 
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+      {/* ========================================================= */}
+      {/* DAILY LIKE QUOTA MONITORING & STATS BANNER                */}
+      {/* ========================================================= */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        
+        {/* Card 1: Total Staff */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+              Total Database Staff
+            </span>
+            <span className="text-2xl font-black text-slate-900 mt-0.5 block">
+              {quotaStats.totalStaff}
+            </span>
+            <span className="text-[11px] text-slate-400">
+              {quotaStats.normalCount} Wajib Like • {quotaStats.exemptCount} Bebas
+            </span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+            <Users className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Card 2: Belum Memenuhi Kuota (HIGHLIGHTED IN RED / WARNING) */}
+        <div
+          onClick={() => setSelectedQuotaFilter(selectedQuotaFilter === 'UNMET' ? 'ALL' : 'UNMET')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex items-center justify-between ${
+            quotaStats.unmetCount > 0
+              ? 'bg-rose-50/80 border-rose-300 ring-2 ring-rose-400/20 hover:bg-rose-100/80'
+              : 'bg-white border-slate-200 hover:border-slate-300'
+          }`}
+          title="Klik untuk filter hanya karyawan yang belum memenuhi kuota like"
+        >
+          <div>
+            <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+              <span>Belum Memenuhi Kuota</span>
+            </span>
+            <span className="text-2xl font-black text-rose-700 mt-0.5 block">
+              {quotaStats.unmetCount} <span className="text-xs font-semibold text-rose-600">Staff</span>
+            </span>
+            <span className="text-[11px] text-rose-600/80 font-medium">
+              {quotaStats.unmetCount > 0 ? '⚠️ Prioritas Follow Up Like!' : 'Semua kuota terpenuhi'}
+            </span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-xs">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Card 3: Sudah Memenuhi Kuota (GREEN) */}
+        <div
+          onClick={() => setSelectedQuotaFilter(selectedQuotaFilter === 'MET' ? 'ALL' : 'MET')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex items-center justify-between ${
+            selectedQuotaFilter === 'MET'
+              ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-400/20'
+              : 'bg-white border-slate-200 hover:border-emerald-200'
+          }`}
+          title="Klik untuk filter karyawan yang sudah like"
+        >
+          <div>
+            <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Sudah Memenuhi Kuota</span>
+            </span>
+            <span className="text-2xl font-black text-emerald-700 mt-0.5 block">
+              {quotaStats.metCount} <span className="text-xs font-semibold text-emerald-600">Staff</span>
+            </span>
+            <span className="text-[11px] text-emerald-600/80 font-medium">
+              {quotaStats.metPercent}% Kepatuhan Like
+            </span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+            <Check className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Card 4: Bebas Kuota (Cuti/Off/Izin) */}
+        <div
+          onClick={() => setSelectedQuotaFilter(selectedQuotaFilter === 'EXEMPT' ? 'ALL' : 'EXEMPT')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex items-center justify-between ${
+            selectedQuotaFilter === 'EXEMPT'
+              ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400/20'
+              : 'bg-white border-slate-200 hover:border-amber-200'
+          }`}
+          title="Klik untuk filter karyawan Cuti / Libur / Izin"
+        >
+          <div>
+            <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">
+              Bebas Kuota (Cuti/Off)
+            </span>
+            <span className="text-2xl font-black text-amber-700 mt-0.5 block">
+              {quotaStats.exemptCount} <span className="text-xs font-semibold text-amber-600">Staff</span>
+            </span>
+            <span className="text-[11px] text-slate-500 font-medium">
+              Bebas denda &amp; pengecualian
+            </span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+            <Sparkles className="w-5 h-5" />
+          </div>
+        </div>
+
+      </div>
+
+      {/* Target Setting & Quota Quick Actions Toolbar */}
+      <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-4 rounded-xl text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md border border-indigo-900/40">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-bold text-amber-300 flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Target Kuota Harian:</span>
+            </span>
+            <select
+              value={dailyQuotaTarget}
+              onChange={(e) => setDailyQuotaTarget(Number(e.target.value))}
+              className="bg-black/40 border border-white/20 rounded-lg px-2.5 py-1 text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+            >
+              <option value={7}>7 Postingan / Hari (100% Full)</option>
+              <option value={5}>5 Postingan / Hari</option>
+              <option value={3}>3 Postingan / Hari</option>
+              <option value={1}>Minimal 1 Like / Post</option>
+            </select>
+          </div>
+
+          <span className="text-slate-400 text-xs hidden sm:inline">•</span>
+
+          <span className="text-xs text-slate-300">
+            Setiap karyawan status <b>Normal</b> yang belum memenuhi kuota di-highlight warna <b>Merah / Oranye</b>.
+          </span>
+        </div>
+
+        {/* Quick Bulk Quota Toggles */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => handleMarkAllMetQuota(true)}
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+            title="Tandai semua karyawan berstatus normal sudah memenuhi kuota hari ini"
+          >
+            <Check className="w-3.5 h-3.5" />
+            <span>Tandai Semua Selesai Kuota</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleMarkAllMetQuota(false)}
+            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-slate-200 font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1 border border-white/10"
+            title="Reset status kuota hari ini (kembalikan ke belum memenuhi)"
+          >
+            <RefreshCw className="w-3 h-3 text-slate-300" />
+            <span>Reset Kuota Hari Ini</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar with Quota Pills */}
+      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+        
         {/* Search */}
-        <div className="relative w-full sm:w-72">
+        <div className="relative w-full lg:w-72">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -513,12 +720,63 @@ export function EmployeeManager({ employees, setEmployees, onNavigateToRekap }: 
           />
         </div>
 
-        {/* Division & Status Filters */}
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-          <div className="flex items-center gap-1 text-xs text-slate-500 font-medium">
-            <Filter className="w-3.5 h-3.5" />
-            <span>Divisi:</span>
-          </div>
+        {/* Quota Status Filter Pills */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-bold text-slate-500 mr-1">Filter Kuota:</span>
+          
+          <button
+            type="button"
+            onClick={() => setSelectedQuotaFilter('ALL')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              selectedQuotaFilter === 'ALL'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Semua ({employees.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedQuotaFilter('UNMET')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+              selectedQuotaFilter === 'UNMET'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+            }`}
+          >
+            <AlertCircle className="w-3 h-3" />
+            <span>⚠️ Belum Memenuhi ({quotaStats.unmetCount})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedQuotaFilter('MET')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+              selectedQuotaFilter === 'MET'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+            }`}
+          >
+            <Check className="w-3 h-3" />
+            <span>✅ Sudah Memenuhi ({quotaStats.metCount})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedQuotaFilter('EXEMPT')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              selectedQuotaFilter === 'EXEMPT'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+            }`}
+          >
+            🏖️ Bebas ({quotaStats.exemptCount})
+          </button>
+        </div>
+
+        {/* Division & Status Dropdowns */}
+        <div className="flex flex-wrap items-center gap-2 justify-end">
           <select
             value={selectedDivisi}
             onChange={(e) => setSelectedDivisi(e.target.value)}
@@ -551,7 +809,7 @@ export function EmployeeManager({ employees, setEmployees, onNavigateToRekap }: 
         </div>
       </div>
 
-      {/* Employee List Table */}
+      {/* Employee List Table with Visual Highlight for Unmet Quota */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-5">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left text-xs border-collapse">
@@ -562,74 +820,138 @@ export function EmployeeManager({ employees, setEmployees, onNavigateToRekap }: 
                 <th className="pb-2.5 font-semibold">Username IG 1</th>
                 <th className="pb-2.5 font-semibold">Username IG 2</th>
                 <th className="pb-2.5 font-semibold text-center">Status Kehadiran</th>
+                <th className="pb-2.5 font-semibold text-center">🎯 Target Kuota Like</th>
                 <th className="pb-2.5 font-semibold">Keterangan</th>
                 <th className="pb-2.5 font-semibold text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-100">
               {filteredEmployees.length > 0 ? (
-                filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-2.5 font-bold text-slate-700">
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[10px] font-semibold">
-                        {emp.divisi}
-                      </span>
-                    </td>
-                    <td className="py-2.5 font-bold text-slate-900">
-                      {emp.nama}
-                    </td>
-                    <td className="py-2.5 font-mono text-indigo-600 font-medium">
-                      @{emp.username1}
-                    </td>
-                    <td className="py-2.5 font-mono text-slate-500">
-                      {emp.username2 ? `@${emp.username2}` : '-'}
-                    </td>
-                    <td className="py-2.5 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleQuickStatusChange(emp.id, emp.status)}
-                        title="Klik untuk ubah status cepat (Normal -> Cuti -> Off, dll)"
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-transform hover:scale-105 active:scale-95 ${
-                          emp.status === 'Normal'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            : 'bg-orange-50 text-orange-700 border border-orange-100'
-                        }`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                          emp.status === 'Normal' ? 'bg-emerald-500' : 'bg-orange-500'
-                        }`} />
-                        {emp.status}
-                      </button>
-                    </td>
-                    <td className="py-2.5 text-slate-500 text-[11px]">
-                      {emp.keterangan || '-'}
-                    </td>
-                    <td className="py-2.5 text-right">
-                      <div className="flex items-center justify-end gap-1">
+                filteredEmployees.map((emp) => {
+                  const isNormal = emp.status === 'Normal';
+                  const isUnmet = isNormal && !emp.hasMetDailyQuota;
+                  const isMet = isNormal && Boolean(emp.hasMetDailyQuota);
+
+                  return (
+                    <tr
+                      key={emp.id}
+                      className={`transition-colors ${
+                        isUnmet
+                          ? 'bg-rose-50/50 hover:bg-rose-100/60 border-l-4 border-rose-500'
+                          : isMet
+                          ? 'bg-emerald-50/20 hover:bg-emerald-100/30 border-l-4 border-emerald-500'
+                          : 'hover:bg-slate-50/70 border-l-4 border-slate-300'
+                      }`}
+                    >
+                      <td className="py-3 font-bold text-slate-700">
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[10px] font-semibold">
+                          {emp.divisi}
+                        </span>
+                      </td>
+                      <td className="py-3 font-bold text-slate-900">
+                        <div className="flex items-center gap-1.5">
+                          {isUnmet && (
+                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title="Belum memenuhi kuota" />
+                          )}
+                          <span>{emp.nama}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 font-mono text-indigo-600 font-medium">
+                        @{emp.username1}
+                      </td>
+                      <td className="py-3 font-mono text-slate-500">
+                        {emp.username2 ? `@${emp.username2}` : '-'}
+                      </td>
+                      <td className="py-3 text-center">
                         <button
                           type="button"
-                          onClick={() => handleOpenEdit(emp)}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                          title="Edit Karyawan"
+                          onClick={() => handleQuickStatusChange(emp.id, emp.status)}
+                          title="Klik untuk ubah status cepat (Normal -> Cuti -> Off, dll)"
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-transform hover:scale-105 active:scale-95 ${
+                            emp.status === 'Normal'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                              : 'bg-orange-50 text-orange-700 border border-orange-100'
+                          }`}
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                              emp.status === 'Normal' ? 'bg-emerald-500' : 'bg-orange-500'
+                            }`}
+                          />
+                          {emp.status}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(emp.id, emp.nama)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="Hapus Karyawan"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+
+                      {/* TARGET KUOTA LIKE COLUMN WITH HIGH VISIBILITY HIGHLIGHT */}
+                      <td className="py-3 text-center">
+                        {isNormal ? (
+                          <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5">
+                            {isUnmet ? (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleEmployeeQuota(emp.id)}
+                                className="px-2.5 py-1 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 hover:bg-rose-200 transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                                title="Klik untuk tandai karyawan ini sudah like / memenuhi kuota"
+                              >
+                                <AlertCircle className="w-3 h-3 text-rose-600" />
+                                <span>Belum Like (0/{dailyQuotaTarget})</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleEmployeeQuota(emp.id)}
+                                className="px-2.5 py-1 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition-all flex items-center gap-1 cursor-pointer"
+                                title="Klik untuk membatalkan status kuota like"
+                              >
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span>Lengkap ({dailyQuotaTarget}/{dailyQuotaTarget})</span>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">
+                            Bebas ({emp.status})
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-3 text-slate-500 text-[11px]">
+                        {isUnmet ? (
+                          <span className="text-rose-600 font-bold flex items-center gap-1">
+                            <span>⚠️ Potensi Denda Rp 5.000</span>
+                          </span>
+                        ) : (
+                          emp.keterangan || '-'
+                        )}
+                      </td>
+
+                      <td className="py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(emp)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Karyawan"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(emp.id, emp.nama)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Hapus Karyawan"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400">
-                    Tidak ada data karyawan yang cocok dengan pencarian atau filter.
+                  <td colSpan={8} className="py-10 text-center text-slate-400">
+                    Tidak ada data karyawan yang cocok dengan pencarian atau filter kuota.
                   </td>
                 </tr>
               )}

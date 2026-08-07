@@ -1,15 +1,24 @@
-import { Heart, Users, Code, BookOpen, Terminal, Sparkles, Layers } from 'lucide-react';
+import { Heart, Users, Code, BookOpen, Terminal, Sparkles, Layers, Chrome, Type, Share2 } from 'lucide-react';
 
-export type ActiveTab = 'rekap' | 'karyawan' | 'code' | 'guide' | 'console';
+export type ActiveTab = 'rekap' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
 
 interface NavbarProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   employeeCount: number;
   storeCode: string;
+  currentFontName?: string;
+  onOpenFontModal?: () => void;
 }
 
-export function Navbar({ activeTab, setActiveTab, employeeCount, storeCode }: NavbarProps) {
+export function Navbar({
+  activeTab,
+  setActiveTab,
+  employeeCount,
+  storeCode,
+  currentFontName = 'Plus Jakarta Sans',
+  onOpenFontModal,
+}: NavbarProps) {
   const storeInitial = storeCode ? storeCode.charAt(0).toUpperCase() : 'K';
 
   return (
@@ -49,7 +58,25 @@ export function Navbar({ activeTab, setActiveTab, employeeCount, storeCode }: Na
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Rekapitulasi WA</span>
+              <span>Rekap Like WA</span>
+            </button>
+
+            <button
+              id="tab-btn-sosmed"
+              onClick={() => setActiveTab('sosmed')}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'sosmed'
+                  ? 'bg-gradient-to-r from-pink-600 to-indigo-600 text-white shadow-xs'
+                  : 'text-slate-700 hover:text-indigo-900 hover:bg-indigo-50/70'
+              }`}
+            >
+              <Share2 className="w-3.5 h-3.5 text-pink-500" />
+              <span>Laporan Posting Sosmed</span>
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                activeTab === 'sosmed' ? 'bg-white/20 text-white' : 'bg-pink-100 text-pink-800'
+              }`}>
+                7 Post
+              </span>
             </button>
 
             <button
@@ -67,6 +94,22 @@ export function Navbar({ activeTab, setActiveTab, employeeCount, storeCode }: Na
                 activeTab === 'karyawan' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'
               }`}>
                 {employeeCount}
+              </span>
+            </button>
+
+            <button
+              id="tab-btn-extension"
+              onClick={() => setActiveTab('extension')}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'extension'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Chrome className="w-3.5 h-3.5 text-amber-500" />
+              <span>Ekstensi IG</span>
+              <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded uppercase">
+                Baru
               </span>
             </button>
 
@@ -110,8 +153,35 @@ export function Navbar({ activeTab, setActiveTab, employeeCount, storeCode }: Na
             </button>
           </nav>
 
-          {/* Connected status badge */}
-          <div className="flex items-center gap-3">
+          {/* Right Header Actions: Font Switcher, Milestone Alert Pill & Connected Status */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            
+            {/* 15:40 & 16:15 Milestone Reminder Pill */}
+            <button
+              onClick={() => setActiveTab('sosmed')}
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold hover:bg-amber-100 transition-all cursor-pointer shadow-2xs"
+              title="Klik untuk membuka Laporan Posting Sosmed (15:40 Laporan Web App • 16:15 Deadline WA)"
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              <span>⏰ 15:40 Laporan | 16:15 WA</span>
+            </button>
+
+            {/* Font Picker Trigger Button */}
+            {onOpenFontModal && (
+              <button
+                id="btn-font-picker"
+                onClick={onOpenFontModal}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 border border-slate-200 transition-all cursor-pointer shadow-2xs hover:border-indigo-300"
+                title="Ubah jenis & ukuran font tampilan"
+              >
+                <Type className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden sm:inline">Font:</span>
+                <span className="text-indigo-900 max-w-[90px] sm:max-w-[120px] truncate">
+                  {currentFontName}
+                </span>
+              </button>
+            )}
+
             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-xs font-semibold">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0"></span>
               <span className="hidden sm:inline">Google Sheets Connected</span>
@@ -132,12 +202,28 @@ export function Navbar({ activeTab, setActiveTab, employeeCount, storeCode }: Na
             ⚡ Rekap WA
           </button>
           <button
+            onClick={() => setActiveTab('sosmed')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1 ${
+              activeTab === 'sosmed' ? 'bg-gradient-to-r from-pink-600 to-indigo-600 text-white' : 'bg-pink-50 text-pink-900 border border-pink-200'
+            }`}
+          >
+            📢 Laporan Sosmed (7 Post)
+          </button>
+          <button
             onClick={() => setActiveTab('karyawan')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${
               activeTab === 'karyawan' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
             }`}
           >
             👥 Karyawan ({employeeCount})
+          </button>
+          <button
+            onClick={() => setActiveTab('extension')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1 ${
+              activeTab === 'extension' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
+            }`}
+          >
+            🧩 Ekstensi IG
           </button>
           <button
             onClick={() => setActiveTab('code')}
@@ -169,3 +255,4 @@ export function Navbar({ activeTab, setActiveTab, employeeCount, storeCode }: Na
     </header>
   );
 }
+

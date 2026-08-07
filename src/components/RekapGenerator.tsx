@@ -23,18 +23,25 @@ import {
   ArrowRight,
   Globe,
   Rocket,
-  UploadCloud
+  UploadCloud,
+  Chrome,
+  Bookmark,
+  Zap,
+  Clipboard
 } from 'lucide-react';
 import { Employee, LikersProcessResult } from '../types';
 import { processLikersData, formatDateIndo, generateWhatsAppLink, extractUsernamesFromRawText } from '../utils/likersParser';
 import { INSTAGRAM_CONSOLE_SCRIPT } from '../data/gasCodeSnippets';
+import { BOOKMARKLET_CODE } from '../data/extensionFiles';
 
 interface RekapGeneratorProps {
   employees: Employee[];
   storeCode: string;
   setStoreCode: (code: string) => void;
   onOpenConsoleGuide: () => void;
+  onOpenExtensionGuide?: () => void;
   onOpenEmployeeManager: () => void;
+  onOpenSosmedReport?: () => void;
 }
 
 export function RekapGenerator({
@@ -42,7 +49,9 @@ export function RekapGenerator({
   storeCode,
   setStoreCode,
   onOpenConsoleGuide,
+  onOpenExtensionGuide,
   onOpenEmployeeManager,
+  onOpenSosmedReport,
 }: RekapGeneratorProps) {
   // Form State
   const [urlPost, setUrlPost] = useState<string>('https://www.instagram.com/p/DAxKj2-z9Yw/');
@@ -53,8 +62,10 @@ export function RekapGenerator({
   const [result, setResult] = useState<LikersProcessResult | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedScript, setCopiedScript] = useState<boolean>(false);
+  const [copiedBookmarklet, setCopiedBookmarklet] = useState<boolean>(false);
   const [isQuickGuideOpen, setIsQuickGuideOpen] = useState<boolean>(false);
   const [isNetlifyGuideOpen, setIsNetlifyGuideOpen] = useState<boolean>(false);
+  const [isExtensionModalOpen, setIsExtensionModalOpen] = useState<boolean>(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
   
   // Breakdown Table Filter State
@@ -208,6 +219,45 @@ export function RekapGenerator({
     setResult(null);
   };
 
+  // Paste from clipboard directly
+  const handlePasteFromClipboard = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          setRawLikersText(text);
+          const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
+          if (isAutoDate) setCustomDate(effectiveDate);
+
+          // Auto trigger process
+          setTimeout(() => {
+            const res = processLikersData({
+              urlPost: urlPost || 'https://www.instagram.com/p/DAxKj2-z9Yw/',
+              rawLikersText: text,
+              employees,
+              customDate: effectiveDate,
+              storeCode: storeCode || 'KTSN',
+            });
+            setResult(res);
+          }, 100);
+        } else {
+          alert('Clipboard Anda masih kosong. Silakan salin daftar username likers terlebih dahulu (atau gunakan Ekstensi / Bookmarklet IG).');
+        }
+      } else {
+        alert('Browser Anda memerlukan izin untuk membaca clipboard. Silakan gunakan Ctrl+V (Paste manual) di kolom textarea.');
+      }
+    } catch {
+      alert('Tidak dapat membaca clipboard secara otomatis. Silakan klik pada kolom teks dan tekan Ctrl+V.');
+    }
+  };
+
+  // Quick Copy Bookmarklet
+  const handleCopyBookmarklet = () => {
+    navigator.clipboard.writeText(BOOKMARKLET_CODE);
+    setCopiedBookmarklet(true);
+    setTimeout(() => setCopiedBookmarklet(false), 2000);
+  };
+
   // Filtered list for the detail breakdown table
   const filteredDetailResults = useMemo(() => {
     if (!result) return [];
@@ -259,6 +309,17 @@ export function RekapGenerator({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {onOpenSosmedReport && (
+            <button
+              onClick={onOpenSosmedReport}
+              className="px-3.5 py-2 bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-700 hover:to-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              title="Buka pembuat laporan posting sosmed harian (IG, FB, TikTok)"
+            >
+              <Instagram className="w-3.5 h-3.5" />
+              <span>Laporan Posting Sosmed</span>
+              <span className="text-[9px] bg-white/25 px-1 py-0.2 rounded font-mono">7 Post</span>
+            </button>
+          )}
           <button
             onClick={onOpenConsoleGuide}
             className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
@@ -402,31 +463,69 @@ export function RekapGenerator({
 
             {/* Step 1: URL Postingan Instagram */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block flex items-center gap-1.5" htmlFor="url-post-input">
                   <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">1</span>
                   <span>Instagram Post URL</span>
                 </label>
-                {urlPost && urlPost.includes('instagram.com') && (
-                  <a
-                    href={urlPost}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-semibold normal-case"
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenExtensionGuide) {
+                        onOpenExtensionGuide();
+                      } else {
+                        setIsExtensionModalOpen(true);
+                      }
+                    }}
+                    className="text-[11px] text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md flex items-center gap-1 font-bold transition-colors cursor-pointer"
+                    title="Gunakan Ekstensi Chrome atau Bookmarklet untuk ekstrak otomatis"
                   >
-                    <span>Buka Post di IG Web</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
+                    <Chrome className="w-3 h-3 text-amber-600" />
+                    <span>⚡ Ekstrak Otomatis via Ekstensi / Bookmarklet</span>
+                  </button>
+
+                  {urlPost && urlPost.includes('instagram.com') && (
+                    <a
+                      href={urlPost}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-semibold normal-case"
+                    >
+                      <span>Buka IG</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
               </div>
-              <input
-                id="url-post-input"
-                type="text"
-                value={urlPost}
-                onChange={(e) => setUrlPost(e.target.value)}
-                placeholder="https://www.instagram.com/p/Cx4j..."
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm transition-all text-slate-900 font-medium"
-              />
+
+              <div className="relative flex items-center">
+                <input
+                  id="url-post-input"
+                  type="text"
+                  value={urlPost}
+                  onChange={(e) => setUrlPost(e.target.value)}
+                  placeholder="https://www.instagram.com/p/Cx4j..."
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm transition-all text-slate-900 font-medium pr-28"
+                />
+                <div className="absolute right-2 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenExtensionGuide) {
+                        onOpenExtensionGuide();
+                      } else {
+                        setIsExtensionModalOpen(true);
+                      }
+                    }}
+                    className="text-[10px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Zap className="w-3 h-3" />
+                    <span>1-Klik Ekstrak</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Step 2: Daftar Likers Instagram (Textarea) */}
@@ -442,15 +541,40 @@ export function RekapGenerator({
                   )}
                 </label>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handlePasteFromClipboard}
+                    className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white transition-all flex items-center gap-1 cursor-pointer shadow-xs"
+                    title="Tempel langsung dari clipboard dan jalankan rekap otomatis"
+                  >
+                    <Clipboard className="w-3 h-3" />
+                    <span>Tempel dari Clipboard</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyBookmarklet}
+                    className={`text-[11px] font-bold px-2 py-1 rounded-md border transition-all flex items-center gap-1 cursor-pointer ${
+                      copiedBookmarklet
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                    }`}
+                    title="Salin kode Bookmarklet 1-Klik"
+                  >
+                    <Bookmark className="w-3 h-3 text-amber-600" />
+                    <span>{copiedBookmarklet ? 'Bookmarklet Tersalin!' : 'Bookmarklet'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleCopyScript}
-                    className={`text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all flex items-center gap-1 cursor-pointer ${
+                    className={`text-[11px] font-bold px-2 py-1 rounded-md border transition-all flex items-center gap-1 cursor-pointer ${
                       copiedScript 
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                        : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                        : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                     }`}
+                    title="Salin script console browser F12"
                   >
                     {copiedScript ? (
                       <>
@@ -459,8 +583,8 @@ export function RekapGenerator({
                       </>
                     ) : (
                       <>
-                        <Terminal className="w-3 h-3 text-indigo-600" />
-                        <span>Salin Script F12</span>
+                        <Terminal className="w-3 h-3 text-slate-600" />
+                        <span>Script F12</span>
                       </>
                     )}
                   </button>
@@ -468,7 +592,7 @@ export function RekapGenerator({
                   <button
                     type="button"
                     onClick={handleFillSample}
-                    className="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1 rounded-md border border-slate-200 cursor-pointer flex items-center gap-1"
+                    className="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded-md border border-slate-200 cursor-pointer flex items-center gap-1"
                     title="Simulasi jika ada karyawan yang belum like (denda)"
                   >
                     <Sparkles className="w-3 h-3 text-amber-500" />
@@ -478,7 +602,7 @@ export function RekapGenerator({
                   <button
                     type="button"
                     onClick={handleFillAllLikedSample}
-                    className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-md border border-emerald-200 cursor-pointer flex items-center gap-1"
+                    className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded-md border border-emerald-200 cursor-pointer flex items-center gap-1"
                     title="Simulasi jika semua karyawan sudah like (output: LIKE DONE)"
                   >
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
@@ -490,6 +614,7 @@ export function RekapGenerator({
                       type="button"
                       onClick={handleClear}
                       className="text-[11px] text-slate-400 hover:text-rose-600 transition-colors cursor-pointer px-1"
+                      title="Hapus input"
                     >
                       Hapus
                     </button>
@@ -1263,6 +1388,140 @@ export function RekapGenerator({
                 className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors shadow-sm"
               >
                 Tutup Panduan
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* EXTENSION & BOOKMARKLET QUICK MODAL                      */}
+      {/* ========================================================= */}
+      {isExtensionModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-indigo-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-200">
+                  <Chrome className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    <span>Ekstensi &amp; Bookmarklet IG Liker Export</span>
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-bold">
+                      1-Klik
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Ekstrak otomatis daftar orang yang like postingan Instagram tanpa repot ketik manual.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsExtensionModalOpen(false)}
+                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-700 custom-scrollbar">
+              
+              {/* Option 1: Bookmarklet (Fastest) */}
+              <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-amber-950 text-xs flex items-center gap-1.5">
+                    <Bookmark className="w-4 h-4 text-amber-600" />
+                    <span>Pilihan 1: Bookmarklet (Tanpa Perlu Install)</span>
+                  </span>
+                  <button
+                    onClick={handleCopyBookmarklet}
+                    className="text-[11px] font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                  >
+                    {copiedBookmarklet ? 'Tersalin!' : 'Salin Kode'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-900 leading-relaxed">
+                  Tinggal seret tombol di bawah ini ke <b>Bookmark Bar browser Anda</b>. Saat membuka likes di Instagram, cukup klik bookmark tersebut &gt; username otomatis tersalin ke clipboard!
+                </p>
+                <div className="flex justify-center pt-1">
+                  <a
+                    href={BOOKMARKLET_CODE}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleCopyBookmarklet();
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2 cursor-grab active:cursor-grabbing hover:scale-105 transition-transform"
+                    title="Seret ke bar bookmark atau klik untuk salin kode"
+                  >
+                    <Zap className="w-3.5 h-3.5 fill-current" />
+                    <span>⚡ Ekstrak Likers IG (Seret ke Bookmark Bar)</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Option 2: Full Chrome Extension */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                    <Chrome className="w-4 h-4 text-indigo-600" />
+                    <span>Pilihan 2: Ekstensi Chrome (.ZIP)</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Pasang ekstensi permanen di Google Chrome / Edge untuk ekstraksi likers dengan 1-klik di pojok kanan atas browser.
+                </p>
+                <div className="pt-2 flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setIsExtensionModalOpen(false);
+                      if (onOpenExtensionGuide) {
+                        onOpenExtensionGuide();
+                      }
+                    }}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Buka Tab Ekstensi &amp; Unduh ZIP &rarr;</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 3: F12 Script */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                    <Terminal className="w-4 h-4 text-slate-700" />
+                    <span>Pilihan 3: Script Console F12</span>
+                  </span>
+                  <button
+                    onClick={handleCopyScript}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                  >
+                    {copiedScript ? 'Script Tersalin!' : 'Salin Script'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Tekan <b>F12 &gt; Console</b> di halaman Instagram dan paste script untuk menyalin ratusan username dalam 2 detik.
+                </p>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">
+                Semua metode 100% aman dan berjalan di browser Anda sendiri.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsExtensionModalOpen(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors shadow-sm"
+              >
+                Tutup
               </button>
             </div>
 
