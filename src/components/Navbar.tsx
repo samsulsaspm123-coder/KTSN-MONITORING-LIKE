@@ -1,4 +1,19 @@
-import { Heart, Users, Code, BookOpen, Terminal, Sparkles, Layers, Chrome, Type, Share2 } from 'lucide-react';
+import {
+  Users,
+  Code,
+  BookOpen,
+  Terminal,
+  Sparkles,
+  Chrome,
+  Type,
+  Share2,
+  Clock,
+  MessageSquare,
+  FileCode2,
+  Puzzle,
+  Flame,
+  CheckCircle2
+} from 'lucide-react';
 
 export type ActiveTab = 'rekap' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
 
@@ -21,238 +36,218 @@ export function Navbar({
 }: NavbarProps) {
   const storeInitial = storeCode ? storeCode.charAt(0).toUpperCase() : 'K';
 
+  // Navigation Items with Distinctive Color Coding, Icons & Visual Badges
+  const navItems = [
+    {
+      id: 'rekap' as ActiveTab,
+      label: 'Rekap Like WA',
+      shortLabel: 'Rekap WA',
+      icon: MessageSquare,
+      color: 'emerald',
+      activeClass: 'bg-emerald-600 text-white shadow-emerald-600/30 shadow-md ring-2 ring-emerald-400/40',
+      inactiveClass: 'text-emerald-800 bg-emerald-50/70 hover:bg-emerald-100/80 border border-emerald-200/80',
+      iconColor: 'text-emerald-500',
+      badge: 'WA',
+      badgeClass: 'bg-emerald-200 text-emerald-900',
+    },
+    {
+      id: 'sosmed' as ActiveTab,
+      label: 'Laporan Sosmed',
+      shortLabel: 'Laporan Sosmed',
+      icon: Share2,
+      color: 'pink',
+      activeClass: 'bg-gradient-to-r from-pink-600 via-rose-600 to-indigo-600 text-white shadow-pink-600/30 shadow-md ring-2 ring-pink-400/40',
+      inactiveClass: 'text-pink-900 bg-pink-50/80 hover:bg-pink-100 border border-pink-200',
+      iconColor: 'text-pink-600',
+      badge: '7 POST',
+      badgeClass: 'bg-pink-200 text-pink-900 font-black animate-pulse',
+    },
+    {
+      id: 'karyawan' as ActiveTab,
+      label: 'Data Karyawan',
+      shortLabel: 'Karyawan',
+      icon: Users,
+      color: 'indigo',
+      activeClass: 'bg-indigo-600 text-white shadow-indigo-600/30 shadow-md ring-2 ring-indigo-400/40',
+      inactiveClass: 'text-indigo-900 bg-indigo-50/70 hover:bg-indigo-100/80 border border-indigo-200/80',
+      iconColor: 'text-indigo-600',
+      badge: `${employeeCount}`,
+      badgeClass: 'bg-indigo-200 text-indigo-900',
+    },
+    {
+      id: 'extension' as ActiveTab,
+      label: 'Ekstensi IG',
+      shortLabel: 'Ekstensi IG',
+      icon: Chrome,
+      color: 'amber',
+      activeClass: 'bg-amber-500 text-slate-950 shadow-amber-500/30 shadow-md font-extrabold ring-2 ring-amber-300',
+      inactiveClass: 'text-amber-900 bg-amber-50/80 hover:bg-amber-100 border border-amber-200',
+      iconColor: 'text-amber-600',
+      badge: 'BARU',
+      badgeClass: 'bg-amber-200 text-amber-950 font-black',
+    },
+    {
+      id: 'code' as ActiveTab,
+      label: 'Kode Code.gs',
+      shortLabel: 'Code.gs',
+      icon: FileCode2,
+      color: 'sky',
+      activeClass: 'bg-sky-600 text-white shadow-sky-600/30 shadow-md ring-2 ring-sky-400/40',
+      inactiveClass: 'text-sky-900 bg-sky-50/70 hover:bg-sky-100 border border-sky-200/80',
+      iconColor: 'text-sky-600',
+      badge: 'GAS',
+      badgeClass: 'bg-sky-200 text-sky-900',
+    },
+    {
+      id: 'guide' as ActiveTab,
+      label: 'Panduan Setup',
+      shortLabel: 'Panduan',
+      icon: BookOpen,
+      color: 'purple',
+      activeClass: 'bg-purple-600 text-white shadow-purple-600/30 shadow-md ring-2 ring-purple-400/40',
+      inactiveClass: 'text-purple-900 bg-purple-50/70 hover:bg-purple-100 border border-purple-200/80',
+      iconColor: 'text-purple-600',
+      badge: 'Buku',
+      badgeClass: 'bg-purple-200 text-purple-900',
+    },
+    {
+      id: 'console' as ActiveTab,
+      label: 'Script IG',
+      shortLabel: 'Script IG',
+      icon: Terminal,
+      color: 'rose',
+      activeClass: 'bg-rose-600 text-white shadow-rose-600/30 shadow-md ring-2 ring-rose-400/40',
+      inactiveClass: 'text-rose-900 bg-rose-50/70 hover:bg-rose-100 border border-rose-200/80',
+      iconColor: 'text-rose-600',
+      badge: 'JS',
+      badgeClass: 'bg-rose-200 text-rose-900',
+    },
+  ];
+
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shrink-0">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+    <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shrink-0 shadow-xs">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 py-2.5">
           
-          {/* Header Brand */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-sm">
-              {storeInitial}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
-                  {storeCode} Monitoring System
-                </h1>
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wider">
-                  Live
-                </span>
+          {/* Left Brand Area: Store Logo + Name + Live Badge */}
+          <div className="flex items-center justify-between lg:justify-start gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-tr from-indigo-700 via-indigo-600 to-purple-600 rounded-xl flex items-center justify-center text-white font-black text-xl shrink-0 shadow-md border border-indigo-400/30">
+                {storeInitial}
               </div>
-              <p className="text-[11px] text-slate-500 font-medium tracking-wide uppercase hidden sm:block">
-                Retail Employee Instagram Engagement
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight tracking-tight">
+                    {storeCode} Monitoring System
+                  </h1>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase tracking-wider">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
+                    Live
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 font-semibold tracking-wide uppercase">
+                  Retail Employee Instagram Engagement
+                </p>
+              </div>
+            </div>
+
+            {/* Mobile Right Controls */}
+            <div className="flex items-center gap-1.5 lg:hidden">
+              {onOpenFontModal && (
+                <button
+                  type="button"
+                  onClick={onOpenFontModal}
+                  className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 text-xs font-bold"
+                  title="Ganti Font"
+                >
+                  <Type className="w-4 h-4 text-indigo-600" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Desktop Navigation Tabs */}
-          <nav className="hidden md:flex items-center space-x-1.5">
-            <button
-              id="tab-btn-rekap"
-              onClick={() => setActiveTab('rekap')}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'rekap'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Rekap Like WA</span>
-            </button>
+          {/* Center / Navigation Menu Toolbar: Color-Coded Distinctive Cards */}
+          <nav aria-label="Menu Utama" className="flex items-center gap-1.5 overflow-x-auto py-1 custom-scrollbar">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
 
-            <button
-              id="tab-btn-sosmed"
-              onClick={() => setActiveTab('sosmed')}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'sosmed'
-                  ? 'bg-gradient-to-r from-pink-600 to-indigo-600 text-white shadow-xs'
-                  : 'text-slate-700 hover:text-indigo-900 hover:bg-indigo-50/70'
-              }`}
-            >
-              <Share2 className="w-3.5 h-3.5 text-pink-500" />
-              <span>Laporan Posting Sosmed</span>
-              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                activeTab === 'sosmed' ? 'bg-white/20 text-white' : 'bg-pink-100 text-pink-800'
-              }`}>
-                7 Post
-              </span>
-            </button>
-
-            <button
-              id="tab-btn-karyawan"
-              onClick={() => setActiveTab('karyawan')}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'karyawan'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Data Karyawan</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                activeTab === 'karyawan' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'
-              }`}>
-                {employeeCount}
-              </span>
-            </button>
-
-            <button
-              id="tab-btn-extension"
-              onClick={() => setActiveTab('extension')}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'extension'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Chrome className="w-3.5 h-3.5 text-amber-500" />
-              <span>Ekstensi IG</span>
-              <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded uppercase">
-                Baru
-              </span>
-            </button>
-
-            <button
-              id="tab-btn-code"
-              onClick={() => setActiveTab('code')}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'code'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Code className="w-3.5 h-3.5" />
-              <span>Kode Code.gs</span>
-            </button>
-
-            <button
-              id="tab-btn-guide"
-              onClick={() => setActiveTab('guide')}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'guide'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Panduan Setup</span>
-            </button>
-
-            <button
-              id="tab-btn-console"
-              onClick={() => setActiveTab('console')}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'console'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Terminal className="w-3.5 h-3.5" />
-              <span>Script IG</span>
-            </button>
+              return (
+                <button
+                  key={item.id}
+                  id={`tab-btn-${item.id}`}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    isActive ? item.activeClass : item.inactiveClass
+                  }`}
+                  title={`Buka ${item.label}`}
+                >
+                  <Icon
+                    className={`w-4 h-4 ${
+                      isActive ? 'text-white' : item.iconColor
+                    }`}
+                  />
+                  <span className="whitespace-nowrap font-extrabold">{item.label}</span>
+                  {item.badge && (
+                    <span
+                      className={`text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tight ${
+                        isActive
+                          ? 'bg-white/25 text-white'
+                          : item.badgeClass
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
 
-          {/* Right Header Actions: Font Switcher, Milestone Alert Pill & Connected Status */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          {/* Right Header Controls: Milestone Reminder Pill + Font Switcher + Connection */}
+          <div className="hidden lg:flex items-center gap-2.5 shrink-0 justify-end">
             
-            {/* 15:40 & 16:15 Milestone Reminder Pill */}
+            {/* 15:40 & 16:15 Milestone Alert Pill */}
             <button
+              type="button"
               onClick={() => setActiveTab('sosmed')}
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold hover:bg-amber-100 transition-all cursor-pointer shadow-2xs"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-100 to-orange-100 text-amber-950 border border-amber-300 text-[11px] font-black hover:from-amber-200 hover:to-orange-200 transition-all cursor-pointer shadow-xs"
               title="Klik untuk membuka Laporan Posting Sosmed (15:40 Laporan Web App • 16:15 Deadline WA)"
             >
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-              <span>⏰ 15:40 Laporan | 16:15 WA</span>
+              <span className="w-2 h-2 rounded-full bg-amber-600 animate-ping shrink-0" />
+              <span>⏰ 15:40 Web | 16:15 WA</span>
             </button>
 
             {/* Font Picker Trigger Button */}
             {onOpenFontModal && (
               <button
                 id="btn-font-picker"
+                type="button"
                 onClick={onOpenFontModal}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 border border-slate-200 transition-all cursor-pointer shadow-2xs hover:border-indigo-300"
+                className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center gap-1.5 border border-slate-300 transition-all cursor-pointer shadow-2xs hover:border-indigo-400"
                 title="Ubah jenis & ukuran font tampilan"
               >
                 <Type className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="hidden sm:inline">Font:</span>
-                <span className="text-indigo-900 max-w-[90px] sm:max-w-[120px] truncate">
+                <span className="hidden xl:inline text-slate-500 font-medium">Font:</span>
+                <span className="text-indigo-950 font-extrabold max-w-[90px] truncate">
                   {currentFontName}
                 </span>
               </button>
             )}
 
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-xs font-semibold">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0"></span>
-              <span className="hidden sm:inline">Google Sheets Connected</span>
-              <span className="sm:hidden">Connected</span>
+            {/* Google Sheets Connection Pill */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold shadow-2xs">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0" />
+              <span className="hidden xl:inline">Google Sheets Connected</span>
+              <span className="xl:hidden">Connected</span>
             </div>
+
           </div>
 
         </div>
-
-        {/* Mobile Navigation Tabs (scrollable) */}
-        <div className="flex md:hidden overflow-x-auto py-2 space-x-1 border-t border-slate-100 custom-scrollbar">
-          <button
-            onClick={() => setActiveTab('rekap')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${
-              activeTab === 'rekap' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            ⚡ Rekap WA
-          </button>
-          <button
-            onClick={() => setActiveTab('sosmed')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1 ${
-              activeTab === 'sosmed' ? 'bg-gradient-to-r from-pink-600 to-indigo-600 text-white' : 'bg-pink-50 text-pink-900 border border-pink-200'
-            }`}
-          >
-            📢 Laporan Sosmed (7 Post)
-          </button>
-          <button
-            onClick={() => setActiveTab('karyawan')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${
-              activeTab === 'karyawan' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            👥 Karyawan ({employeeCount})
-          </button>
-          <button
-            onClick={() => setActiveTab('extension')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1 ${
-              activeTab === 'extension' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            🧩 Ekstensi IG
-          </button>
-          <button
-            onClick={() => setActiveTab('code')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${
-              activeTab === 'code' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            📜 Kode GAS
-          </button>
-          <button
-            onClick={() => setActiveTab('guide')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${
-              activeTab === 'guide' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            📖 Panduan
-          </button>
-          <button
-            onClick={() => setActiveTab('console')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${
-              activeTab === 'console' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            🛠️ Script IG
-          </button>
-        </div>
-
       </div>
     </header>
   );
 }
+
 
