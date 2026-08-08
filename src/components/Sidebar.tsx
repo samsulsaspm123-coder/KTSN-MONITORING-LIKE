@@ -290,15 +290,19 @@ export function Sidebar({
 
         {/* SIDEBAR NAVIGATION ITEMS LIST (Scrollable if needed) */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-1.5 custom-scrollbar">
-          <div className="px-2 pb-1.5">
+          <div className="px-2 pb-1.5 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
               Menu Utama & Laporan
             </span>
+            <span className="text-[9px] font-mono font-bold text-slate-400">
+              Ctrl+1..7
+            </span>
           </div>
 
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
+            const shortcutNum = index + 1;
 
             return (
               <motion.button
@@ -308,12 +312,12 @@ export function Sidebar({
                 whileHover={{ scale: 1.015, x: 2 }}
                 whileTap={{ scale: 0.975 }}
                 transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
-                className={`w-full text-left p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-between gap-3 cursor-pointer group relative overflow-hidden ${
+                className={`w-full text-left p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-between gap-2.5 cursor-pointer group relative overflow-hidden ${
                   isActive
                     ? item.activeBg
                     : `text-slate-700 hover:text-slate-900 border ${item.inactiveBorder} bg-white shadow-2xs hover:shadow-xs`
                 }`}
-                title={`Buka ${item.label} - ${item.subtitle}`}
+                title={`Buka ${item.label} (Tekan Ctrl+${shortcutNum} atau Alt+${shortcutNum})`}
               >
                 <div className="flex items-center gap-3 min-w-0 z-10">
                   <div
@@ -339,16 +343,28 @@ export function Sidebar({
                   </div>
                 </div>
 
-                {/* Right Badge */}
-                {item.badge && (
-                  <span
-                    className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tight shrink-0 shadow-2xs z-10 transition-transform group-hover:scale-105 ${
-                      isActive ? 'bg-white/25 text-white' : item.badgeClass
+                {/* Right Badges: Feature Tag + Keyboard Shortcut Indicator */}
+                <div className="flex items-center gap-1.5 shrink-0 z-10">
+                  {item.badge && (
+                    <span
+                      className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tight shadow-2xs transition-transform group-hover:scale-105 ${
+                        isActive ? 'bg-white/25 text-white' : item.badgeClass
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                  <kbd
+                    className={`hidden sm:inline-flex items-center justify-center text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                      isActive
+                        ? 'bg-white/20 text-white border-white/30'
+                        : 'bg-slate-100/90 text-slate-400 border-slate-200/90 group-hover:text-slate-700 group-hover:border-slate-300'
                     }`}
+                    title={`Pindah cepat: Tekan Ctrl+${shortcutNum} / Alt+${shortcutNum}`}
                   >
-                    {item.badge}
-                  </span>
-                )}
+                    ^{shortcutNum}
+                  </kbd>
+                </div>
               </motion.button>
             );
           })}

@@ -382,15 +382,16 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
     }
   };
 
-  // Format single post message for WhatsApp (Struktur Huruf Besar Semua untuk Header Judul Produk)
+  // Format single post message for WhatsApp: [JUDUL][KOMA+SPASI][NAMA POSTINGAN][SPASI][LINK]
+  // Contoh: POST IG MEGA KTSN, SEPEDA LISTRIK https://www.instagram.com/p/DbuLZWPv9mE/
   const formatPostText = (post: SosmedPostItem): string => {
     const config = SOSMED_PLATFORM_CONFIG[post.platform] || SOSMED_PLATFORM_CONFIG.OTHER;
     const prefix = (config.prefix || 'POST').toUpperCase();
     const sName = (post.storeName || storeName || 'MEGA KTSN').trim().toUpperCase();
     const titleText = (post.title || 'PRODUK / PROMO TERBARU').trim().toUpperCase();
-    const urlText = post.url ? post.url.trim() : '(Link belum diisi)';
+    const urlText = post.url ? post.url.trim() : '';
 
-    return `${prefix} ${sName}, ${titleText}\n${urlText}`;
+    return urlText ? `${prefix} ${sName}, ${titleText} ${urlText}` : `${prefix} ${sName}, ${titleText}`;
   };
 
   // =========================================================================
@@ -561,8 +562,8 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
       const sName = (post.storeName || storeName || 'MEGA KTSN').trim().toUpperCase();
       const titleText = (post.title || 'PRODUK / PROMO TERBARU').trim().toUpperCase();
       const checkMark = post.isCompleted ? '✅' : '⏳';
-      text += `*${index + 1}. ${prefix} ${sName}, ${titleText}* ${checkMark}\n`;
-      text += `${post.url ? post.url.trim() : '(Link menyusul)'}\n\n`;
+      const cleanUrl = post.url ? post.url.trim() : '';
+      text += `*${index + 1}) ${prefix} ${sName}, ${titleText}* ${cleanUrl} ${checkMark}\n\n`;
     });
 
     text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -630,7 +631,7 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
             </h2>
 
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Format otomatis 3-in-1: <code className="bg-black/50 text-amber-300 px-1.5 py-0.5 rounded font-mono text-[11px]">POST IG MEGA KTSN, GODA LEMON</code> + Link URL + Lampiran Foto Screenshot untuk dishare ke Grup WhatsApp Desainer / Marketing.
+              Format otomatis sejajar: <code className="bg-black/50 text-amber-300 px-1.5 py-0.5 rounded font-mono text-[11px]">POST IG MEGA KTSN, GODA LEMON https://www.instagram.com/p/...</code> + Lampiran Foto Screenshot untuk dishare ke Grup WhatsApp Desainer / Marketing.
             </p>
           </div>
 
@@ -1117,20 +1118,24 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
                 </div>
 
                 {/* Formatted Output Box (What will be sent to WhatsApp) */}
-                <div className="bg-slate-900 text-white rounded-xl p-3 font-mono text-[11px] border border-slate-800 space-y-1">
+                <div className="bg-slate-900 text-white rounded-xl p-3 font-mono text-[11px] border border-slate-800 space-y-1.5">
                   <div className="flex items-center justify-between text-[10px] text-slate-400 uppercase font-sans font-bold mb-1">
                     <span className="flex items-center gap-1 text-indigo-300">
                       <FileText className="w-3 h-3" />
                       <span>Output Pesan Grup WhatsApp:</span>
                     </span>
-                    <span className="text-emerald-400 font-normal">Format Standar (Huruf Besar Semua)</span>
+                    <span className="text-emerald-400 font-semibold bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.5 rounded text-[9px]">
+                      Sejajar 1 Baris (Spasi + Link)
+                    </span>
                   </div>
 
-                  <p className="text-amber-300 font-bold tracking-wide uppercase">
-                    {(config.prefix || 'POST').toUpperCase()} {(post.storeName || storeName || 'MEGA KTSN').trim().toUpperCase()}, {(post.title || 'PRODUK / PROMO TERBARU').trim().toUpperCase()}
-                  </p>
-                  <p className="text-indigo-200 truncate underline">
-                    {post.url || 'https://www.instagram.com/p/...'}
+                  <p className="text-slate-100 font-bold tracking-wide break-all leading-relaxed select-all">
+                    <span className="text-amber-300 font-black">
+                      {(config.prefix || 'POST').toUpperCase()} {(post.storeName || storeName || 'MEGA KTSN').trim().toUpperCase()}, {(post.title || 'PRODUK / PROMO TERBARU').trim().toUpperCase()}
+                    </span>{' '}
+                    <span className="text-indigo-300 underline font-normal">
+                      {post.url || 'https://www.instagram.com/p/...'}
+                    </span>
                   </p>
                 </div>
 
