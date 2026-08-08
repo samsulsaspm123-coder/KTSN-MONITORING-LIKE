@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { RekapGenerator } from './components/RekapGenerator';
 import { SosmedReportManager } from './components/SosmedReportManager';
@@ -30,12 +31,53 @@ const LOCAL_STORAGE_KEY_STORE = 'likemonitor_store_code_v1';
 const LOCAL_STORAGE_KEY_FONT = 'likemonitor_font_family_v1';
 const LOCAL_STORAGE_KEY_SIZE = 'likemonitor_font_size_v1';
 
+const TAB_ORDER: ActiveTab[] = ['rekap', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
+
+// Motion Variants for smooth horizontal swipe + vertical lift + subtle blur transitions
+const tabVariants = {
+  enter: (dir: number) => ({
+    opacity: 0,
+    x: dir >= 0 ? 32 : -32,
+    y: 6,
+    filter: 'blur(3px)',
+  }),
+  center: {
+    opacity: 1,
+    x: 0,
+    y: 0,
+    filter: 'blur(0px)',
+    transition: {
+      duration: 0.24,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+  exit: (dir: number) => ({
+    opacity: 0,
+    x: dir >= 0 ? -28 : 28,
+    y: -4,
+    filter: 'blur(2px)',
+    transition: {
+      duration: 0.18,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  }),
+};
+
 export default function App() {
-  // Navigation
+  // Navigation & Directional Swipe Transition
   const [activeTab, setActiveTab] = useState<ActiveTab>('rekap');
+  const [direction, setDirection] = useState<number>(1);
   const [gasGuideDefaultTab, setGasGuideDefaultTab] = useState<
     'code-gs' | 'index-html' | 'sheet-template' | 'step-by-step' | 'console-ig'
   >('code-gs');
+
+  const handleTabChange = (newTab: ActiveTab) => {
+    if (newTab === activeTab) return;
+    const currentIndex = TAB_ORDER.indexOf(activeTab);
+    const newIndex = TAB_ORDER.indexOf(newTab);
+    setDirection(newIndex >= currentIndex ? 1 : -1);
+    setActiveTab(newTab);
+  };
 
   // Font & Typography States
   const [currentFont, setCurrentFont] = useState<FontFamilyId>(() => {
@@ -130,20 +172,20 @@ export default function App() {
     }
   }, [storeCode]);
 
-  // Helper navigations
+  // Helper navigations with smooth swipe direction
   const handleOpenConsoleGuide = () => {
     setGasGuideDefaultTab('console-ig');
-    setActiveTab('console');
+    handleTabChange('console');
   };
 
   const handleOpenCodeTab = () => {
     setGasGuideDefaultTab('code-gs');
-    setActiveTab('code');
+    handleTabChange('code');
   };
 
   const handleOpenGuideTab = () => {
     setGasGuideDefaultTab('step-by-step');
-    setActiveTab('guide');
+    handleTabChange('guide');
   };
 
   const currentFontObj = FONT_OPTIONS.find((f) => f.id === currentFont) || FONT_OPTIONS[0];
@@ -230,7 +272,7 @@ export default function App() {
       {/* ========================================================= */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleTabChange}
         employeeCount={employees.length}
         storeCode={storeCode}
         currentFontName={currentFontObj.name}
@@ -245,10 +287,22 @@ export default function App() {
         {/* TOP BREADCRUMB / STATUS HEADER ON DESKTOP */}
         <header className="hidden lg:flex bg-white border-b border-slate-200 sticky top-0 z-20 px-6 py-3.5 items-center justify-between shadow-2xs">
           <div className="flex items-center gap-3.5 min-w-0">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${currentTabDetails.color}`}>
+            <motion.div
+              key={`icon-${activeTab}`}
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${currentTabDetails.color}`}
+            >
               <ActiveTabIcon className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
+            </motion.div>
+            <motion.div
+              key={`text-${activeTab}`}
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="min-w-0"
+            >
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-black text-slate-900 leading-tight truncate">
                   {currentTabDetails.title}
@@ -260,7 +314,7 @@ export default function App() {
               <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
                 {currentTabDetails.subtitle}
               </p>
-            </div>
+            </motion.div>
           </div>
 
           {/* Right Header Badges: Milestone Alert + Font + Connection */}
@@ -268,7 +322,7 @@ export default function App() {
             {/* Quick 15:40 & 16:15 Milestone Reminder Pill */}
             <button
               type="button"
-              onClick={() => setActiveTab('sosmed')}
+              onClick={() => handleTabChange('sosmed')}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-100 to-orange-100 text-amber-950 border border-amber-300 text-xs font-black hover:from-amber-200 hover:to-orange-200 transition-all cursor-pointer shadow-2xs"
               title="Laporan Web App 15:40 • Deadline Masuk Grup WA 16:15"
             >
@@ -299,66 +353,76 @@ export default function App() {
           </div>
         </header>
 
-        {/* MAIN BODY WORK AREA */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
-          
-          {/* TAB 1: REKAP GENERATOR (Primary Work Area) */}
-          {activeTab === 'rekap' && (
-            <RekapGenerator
-              employees={employees}
-              storeCode={storeCode}
-              setStoreCode={setStoreCode}
-              onOpenConsoleGuide={handleOpenConsoleGuide}
-              onOpenExtensionGuide={() => setActiveTab('extension')}
-              onOpenEmployeeManager={() => setActiveTab('karyawan')}
-              onOpenSosmedReport={() => setActiveTab('sosmed')}
-            />
-          )}
+        {/* MAIN BODY WORK AREA WITH HORIZONTAL SLIDE TRANSITION */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto overflow-hidden">
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={activeTab}
+              custom={direction}
+              variants={tabVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              className="w-full"
+            >
+              {/* TAB 1: REKAP GENERATOR (Primary Work Area) */}
+              {activeTab === 'rekap' && (
+                <RekapGenerator
+                  employees={employees}
+                  storeCode={storeCode}
+                  setStoreCode={setStoreCode}
+                  onOpenConsoleGuide={handleOpenConsoleGuide}
+                  onOpenExtensionGuide={() => handleTabChange('extension')}
+                  onOpenEmployeeManager={() => handleTabChange('karyawan')}
+                  onOpenSosmedReport={() => handleTabChange('sosmed')}
+                />
+              )}
 
-          {/* TAB: SOSMED REPORT GENERATOR (NEW MULTI-PLATFORM WHATSAPP REPORT BUILDER) */}
-          {activeTab === 'sosmed' && (
-            <SosmedReportManager
-              storeCode={storeCode}
-            />
-          )}
+              {/* TAB: SOSMED REPORT GENERATOR (NEW MULTI-PLATFORM WHATSAPP REPORT BUILDER) */}
+              {activeTab === 'sosmed' && (
+                <SosmedReportManager
+                  storeCode={storeCode}
+                />
+              )}
 
-          {/* TAB 2: EMPLOYEE ROSTER MANAGER */}
-          {activeTab === 'karyawan' && (
-            <EmployeeManager
-              employees={employees}
-              setEmployees={setEmployees}
-              onNavigateToRekap={() => setActiveTab('rekap')}
-            />
-          )}
+              {/* TAB 2: EMPLOYEE ROSTER MANAGER */}
+              {activeTab === 'karyawan' && (
+                <EmployeeManager
+                  employees={employees}
+                  setEmployees={setEmployees}
+                  onNavigateToRekap={() => handleTabChange('rekap')}
+                />
+              )}
 
-          {/* TAB 3: CHROME EXTENSION & BOOKMARKLET BUILDER */}
-          {activeTab === 'extension' && (
-            <ExtensionManager
-              onNavigateToRekap={() => setActiveTab('rekap')}
-            />
-          )}
+              {/* TAB 3: CHROME EXTENSION & BOOKMARKLET BUILDER */}
+              {activeTab === 'extension' && (
+                <ExtensionManager
+                  onNavigateToRekap={() => handleTabChange('rekap')}
+                />
+              )}
 
-          {/* TAB 4: GOOGLE APPS SCRIPT CODE VIEWER */}
-          {activeTab === 'code' && (
-            <GasDeployGuide defaultTab="code-gs" />
-          )}
+              {/* TAB 4: GOOGLE APPS SCRIPT CODE VIEWER */}
+              {activeTab === 'code' && (
+                <GasDeployGuide defaultTab="code-gs" />
+              )}
 
-          {/* TAB 5: STEP BY STEP DEPLOY GUIDE */}
-          {activeTab === 'guide' && (
-            <GasDeployGuide defaultTab="step-by-step" />
-          )}
+              {/* TAB 5: STEP BY STEP DEPLOY GUIDE */}
+              {activeTab === 'guide' && (
+                <GasDeployGuide defaultTab="step-by-step" />
+              )}
 
-          {/* TAB 6: INSTAGRAM CONSOLE HELPER SCRIPT */}
-          {activeTab === 'console' && (
-            <GasDeployGuide defaultTab="console-ig" />
-          )}
-
+              {/* TAB 6: INSTAGRAM CONSOLE HELPER SCRIPT */}
+              {activeTab === 'console' && (
+                <GasDeployGuide defaultTab="console-ig" />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </main>
 
         {/* Global Milestone 15:40 & 16:15 Alert Popup (Active across all tabs) */}
         <GlobalMilestonePopup
           activeTab={activeTab}
-          onNavigateToSosmed={() => setActiveTab('sosmed')}
+          onNavigateToSosmed={() => handleTabChange('sosmed')}
           storeName={storeCode ? `MEGA ${storeCode}` : 'MEGA KTSN'}
         />
 
@@ -399,21 +463,21 @@ export default function App() {
 
             <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 font-medium">
               <button
-                onClick={() => setActiveTab('rekap')}
+                onClick={() => handleTabChange('rekap')}
                 className="hover:text-indigo-600 cursor-pointer transition-colors"
               >
                 Generator Rekap
               </button>
               <span>&bull;</span>
               <button
-                onClick={() => setActiveTab('sosmed')}
+                onClick={() => handleTabChange('sosmed')}
                 className="hover:text-indigo-600 cursor-pointer transition-colors font-bold text-pink-600"
               >
                 Laporan Sosmed (7 Post)
               </button>
               <span>&bull;</span>
               <button
-                onClick={() => setActiveTab('karyawan')}
+                onClick={() => handleTabChange('karyawan')}
                 className="hover:text-indigo-600 cursor-pointer transition-colors"
               >
                 Data Karyawan ({employees.length})

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Users,
   Code,
@@ -229,12 +230,18 @@ export function Sidebar({
       {/* ========================================================= */}
       {/* MOBILE BACKDROP OVERLAY                                    */}
       {/* ========================================================= */}
-      {isMobileOpen && (
-        <div
-          onClick={() => setIsMobileOpen(false)}
-          className="lg:hidden fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-xs transition-opacity animate-in fade-in"
-        />
-      )}
+      <AnimatePresence>
+        {isMobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setIsMobileOpen(false)}
+            className="lg:hidden fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-xs cursor-pointer"
+          />
+        )}
+      </AnimatePresence>
 
       {/* ========================================================= */}
       {/* LEFT SIDEBAR CONTAINER (Desktop: Sticky, Mobile: Drawer)  */}
@@ -274,7 +281,7 @@ export function Sidebar({
             <button
               type="button"
               onClick={() => setIsMobileOpen(false)}
-              className="lg:hidden p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+              className="lg:hidden p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -294,20 +301,23 @@ export function Sidebar({
             const isActive = activeTab === item.id;
 
             return (
-              <button
+              <motion.button
                 key={item.id}
                 id={`sidebar-btn-${item.id}`}
                 onClick={() => handleSelectTab(item.id)}
-                className={`w-full text-left p-2.5 rounded-2xl transition-all flex items-center justify-between gap-3 cursor-pointer group ${
+                whileHover={{ scale: 1.015, x: 2 }}
+                whileTap={{ scale: 0.975 }}
+                transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+                className={`w-full text-left p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-between gap-3 cursor-pointer group relative overflow-hidden ${
                   isActive
                     ? item.activeBg
-                    : `text-slate-700 hover:text-slate-900 border ${item.inactiveBorder} bg-white shadow-2xs`
+                    : `text-slate-700 hover:text-slate-900 border ${item.inactiveBorder} bg-white shadow-2xs hover:shadow-xs`
                 }`}
                 title={`Buka ${item.label} - ${item.subtitle}`}
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-3 min-w-0 z-10">
                   <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 shadow-2xs ${
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 group-hover:scale-105 shadow-2xs ${
                       isActive ? item.activeIconBg : item.inactiveIconBg
                     }`}
                   >
@@ -320,7 +330,7 @@ export function Sidebar({
                       </span>
                     </div>
                     <p
-                      className={`text-[10px] truncate leading-tight font-medium ${
+                      className={`text-[10px] truncate leading-tight font-medium transition-colors ${
                         isActive ? 'text-white/80' : 'text-slate-500'
                       }`}
                     >
@@ -332,14 +342,14 @@ export function Sidebar({
                 {/* Right Badge */}
                 {item.badge && (
                   <span
-                    className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tight shrink-0 shadow-2xs ${
+                    className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tight shrink-0 shadow-2xs z-10 transition-transform group-hover:scale-105 ${
                       isActive ? 'bg-white/25 text-white' : item.badgeClass
                     }`}
                   >
                     {item.badge}
                   </span>
                 )}
-              </button>
+              </motion.button>
             );
           })}
 
@@ -347,8 +357,11 @@ export function Sidebar({
           {/* SIDEBAR MILESTONE REMINDER WIDGET (15:40 & 16:15)         */}
           {/* ========================================================= */}
           <div className="pt-3">
-            <div
+            <motion.div
               onClick={() => handleSelectTab('sosmed')}
+              whileHover={{ scale: 1.015, y: -1 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.16 }}
               className={`p-3.5 rounded-2xl border transition-all cursor-pointer shadow-xs group ${
                 isDeadlinePassed
                   ? 'bg-rose-50 border-rose-200 text-rose-950 hover:bg-rose-100/90'
@@ -395,7 +408,7 @@ export function Sidebar({
                   Format WA
                 </span>
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
 

@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { 
   Instagram, 
   Send, 
@@ -287,24 +286,11 @@ export function RekapGenerator({
     return Array.from(set).sort();
   }, [employees]);
 
-  const cardVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: (i: number) => ({
-      opacity: 1, y: 0,
-      transition: { delay: i * 0.08, duration: 0.45, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
-    }),
-  };
-
   return (
     <div className="space-y-6">
       
       {/* Top Banner / Quick Info */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 card-hover"
-      >
+      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wider">
@@ -324,9 +310,7 @@ export function RekapGenerator({
 
         <div className="flex items-center gap-2 shrink-0">
           {onOpenSosmedReport && (
-            <motion.button
-              whileHover={{ scale: 1.04, y: -1 }}
-              whileTap={{ scale: 0.96 }}
+            <button
               onClick={onOpenSosmedReport}
               className="px-3.5 py-2 bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-700 hover:to-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               title="Buka pembuat laporan posting sosmed harian (IG, FB, TikTok)"
@@ -334,28 +318,24 @@ export function RekapGenerator({
               <Instagram className="w-3.5 h-3.5" />
               <span>Laporan Posting Sosmed</span>
               <span className="text-[9px] bg-white/25 px-1 py-0.2 rounded font-mono">7 Post</span>
-            </motion.button>
+            </button>
           )}
-          <motion.button
-            whileHover={{ scale: 1.04, y: -1 }}
-            whileTap={{ scale: 0.96 }}
+          <button
             onClick={onOpenConsoleGuide}
             className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
             <span>Script Likers IG</span>
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.04, y: -1 }}
-            whileTap={{ scale: 0.96 }}
+          </button>
+          <button
             onClick={onOpenEmployeeManager}
             className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <Users className="w-3.5 h-3.5" />
             <span>Kelola Karyawan</span>
-          </motion.button>
+          </button>
         </div>
-      </motion.div>
+      </div>
 
       {/* Main Grid Layout: Form Input (Left) & Output WhatsApp (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -735,13 +715,7 @@ export function RekapGenerator({
           </div>
 
           {/* Database Quick View Table */}
-          <motion.div
-            custom={1}
-            variants={cardVariants}
-            initial="hidden"
-            animate="visible"
-            className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col card-hover"
-          >
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
             <div className="flex justify-between items-center mb-3">
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Employee Database Status</h3>
@@ -811,7 +785,7 @@ export function RekapGenerator({
                 </button>
               </div>
             </div>
-          </motion.div>
+          </div>
 
         </div>
 
@@ -821,13 +795,7 @@ export function RekapGenerator({
         <div className="lg:col-span-5 flex flex-col gap-6">
           
           {/* Output Preview (Dark Professional Terminal) */}
-          <motion.div
-            custom={0}
-            variants={cardVariants}
-            initial="hidden"
-            animate="visible"
-            className="bg-slate-900 rounded-xl shadow-xl p-5 flex flex-col gap-4 border border-slate-800 card-hover"
-          >
+          <div className="bg-slate-900 rounded-xl shadow-xl p-5 flex flex-col gap-4 border border-slate-800">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center text-white">
@@ -946,16 +914,10 @@ export function RekapGenerator({
                 <span>Buka di WA</span>
               </a>
             </div>
-          </motion.div>
+          </div>
 
           {/* Setup Instruction & Deployment Card */}
-          <motion.div
-            custom={1}
-            variants={cardVariants}
-            initial="hidden"
-            animate="visible"
-            className="bg-indigo-50 border border-indigo-100 rounded-xl p-5 space-y-3 card-hover"
-          >
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
                 <Info className="w-4 h-4 text-indigo-600 shrink-0" />
@@ -998,7 +960,7 @@ export function RekapGenerator({
                 <p className="text-[10px] text-slate-500">Langsung di menu Spreadsheet Anda</p>
               </button>
             </div>
-          </motion.div>
+          </div>
 
         </div>
 
@@ -1008,12 +970,7 @@ export function RekapGenerator({
       {/* DETAILED EMPLOYEE BREAKDOWN TABLE                         */}
       {/* ========================================================= */}
       {result && (
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-4"
-        >
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1070,29 +1027,26 @@ export function RekapGenerator({
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto custom-scrollbar sticky-header" style={{ maxHeight: '60vh' }}>
+          <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="text-slate-500 border-b border-slate-200 uppercase text-[10px] tracking-wider">
-                  <th className="py-3 px-3 font-bold">Divisi</th>
-                  <th className="py-3 px-3 font-bold">Nama Karyawan</th>
-                  <th className="py-3 px-3 font-bold">Username 1</th>
-                  <th className="py-3 px-3 font-bold">Username 2</th>
-                  <th className="py-3 px-3 font-bold text-center">Status Kerja</th>
-                  <th className="py-3 px-3 font-bold text-center">Hasil Like</th>
-                  <th className="py-3 px-3 font-bold text-right">Tindakan</th>
+                <tr className="text-slate-400 border-b border-slate-100 uppercase text-[10px] tracking-wider">
+                  <th className="py-2.5 px-3 font-semibold">Divisi</th>
+                  <th className="py-2.5 px-3 font-semibold">Nama Karyawan</th>
+                  <th className="py-2.5 px-3 font-semibold">Username 1</th>
+                  <th className="py-2.5 px-3 font-semibold">Username 2</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">Status Kerja</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">Hasil Like</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Tindakan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filteredDetailResults.length > 0 ? (
-                  filteredDetailResults.map((item, idx) => (
-                    <motion.tr
+                  filteredDetailResults.map((item) => (
+                    <tr
                       key={item.employee.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: idx * 0.02, duration: 0.25 }}
-                      className={`row-hover ${
-                        item.isPenalized ? 'bg-rose-50/30 hover:bg-rose-100/40 border-l-4 border-rose-500' : 'hover:bg-slate-50/80 border-l-4 border-transparent'
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        item.isPenalized ? 'bg-rose-50/20' : ''
                       }`}
                     >
                       <td className="py-2.5 px-3 font-bold text-slate-700">
@@ -1149,7 +1103,7 @@ export function RekapGenerator({
                           </span>
                         )}
                       </td>
-                    </motion.tr>
+                    </tr>
                   ))
                 ) : (
                   <tr>
@@ -1161,27 +1115,15 @@ export function RekapGenerator({
               </tbody>
             </table>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* ========================================================= */}
       {/* QUICK CONSOLE GUIDE & TROUBLESHOOTING MODAL              */}
       {/* ========================================================= */}
-      <AnimatePresence>
-        {isQuickGuideOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.92, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.92, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
-          >
+      {isQuickGuideOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
@@ -1311,29 +1253,16 @@ export function RekapGenerator({
               </button>
             </div>
 
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-      </AnimatePresence>
 
       {/* ========================================================= */}
       {/* NETLIFY DEPLOYMENT GUIDE MODAL                            */}
       {/* ========================================================= */}
-      <AnimatePresence>
-        {isNetlifyGuideOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.92, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.92, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-200"
-          >
+      {isNetlifyGuideOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
             
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-teal-50 to-indigo-50/50">
@@ -1462,29 +1391,16 @@ export function RekapGenerator({
               </button>
             </div>
 
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-      </AnimatePresence>
 
       {/* ========================================================= */}
       {/* EXTENSION & BOOKMARKLET QUICK MODAL                      */}
       {/* ========================================================= */}
-      <AnimatePresence>
-        {isExtensionModalOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.92, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.92, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-200"
-          >
+      {isExtensionModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
             
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-indigo-50/50">
@@ -1609,10 +1525,9 @@ export function RekapGenerator({
               </button>
             </div>
 
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-      </AnimatePresence>
 
     </div>
   );
