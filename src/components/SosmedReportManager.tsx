@@ -104,6 +104,7 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
     text: string;
     hasImage: boolean;
   } | null>(null);
+  const [isToastCaptionCopied, setIsToastCaptionCopied] = useState<boolean>(false);
 
   // Active Modal for Adding New Post
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
@@ -114,6 +115,7 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
   const [newUrl, setNewUrl] = useState<string>('');
   const [newNotes, setNewNotes] = useState<string>('');
   const [newAutoMirror, setNewAutoMirror] = useState<boolean>(true);
+  const [addModalError, setAddModalError] = useState<string | null>(null);
 
   // Explanation Modal
   const [isExplainModalOpen, setIsExplainModalOpen] = useState<boolean>(false);
@@ -319,9 +321,10 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
   // Add new post
   const handleAddNewPost = () => {
     if (!newTitle.trim()) {
-      alert('Silakan masukkan nama/judul postingan (contoh: GODA LEMON)');
+      setAddModalError('Silakan masukkan nama/judul postingan (contoh: GODA LEMON)');
       return;
     }
+    setAddModalError(null);
 
     const cleanTitle = newTitle.trim().toUpperCase();
     const cleanStore = (storeName || 'MEGA KTSN').trim().toUpperCase();
@@ -493,16 +496,11 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
     }
   };
 
-  // Copy single post text
+  // Copy single post text (Caption saja) - Langsung tersalin tanpa pop-up mengganggu
   const handleCopySinglePost = (post: SosmedPostItem) => {
     const text = formatPostText(post);
     navigator.clipboard.writeText(text);
     setCopiedId(post.id);
-    setActiveComboToast({
-      post,
-      text,
-      hasImage: false
-    });
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -525,17 +523,10 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
           new (window as any).ClipboardItem({ [blob.type]: blob })
         ]);
         setCopiedImageId(post.id);
-        setActiveComboToast({
-          post,
-          text: formatPostText(post),
-          hasImage: true
-        });
         setTimeout(() => setCopiedImageId(null), 2500);
-      } else {
-        alert('Browser tidak mendukung salin gambar langsung. Silakan unduh gambar atau gunakan klik kanan > Salin Gambar.');
       }
     } catch {
-      alert('Gagal menyalin gambar secara otomatis. Anda bisa klik kanan gambar lalu pilih "Copy Image".');
+      // Fallback
     }
   };
 
@@ -1299,12 +1290,29 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
             <button
               onClick={() => {
                 navigator.clipboard.writeText(activeComboToast.text);
-                alert('Teks Caption (Judul + Link) tersalin! Sekarang tekan Ctrl+V di kolom keterangan WhatsApp.');
+                setIsToastCaptionCopied(true);
+                setTimeout(() => {
+                  setIsToastCaptionCopied(false);
+                }, 2000);
               }}
-              className="flex-1 py-1.5 px-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                isToastCaptionCopied
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}
+              title="Salin caption langsung ke clipboard"
             >
-              <Clipboard className="w-3.5 h-3.5" />
-              <span>Salin Keterangan (Caption) Saja</span>
+              {isToastCaptionCopied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>✓ Caption Tersalin! (Tekan Ctrl+V di WA)</span>
+                </>
+              ) : (
+                <>
+                  <Clipboard className="w-3.5 h-3.5" />
+                  <span>Salin Keterangan (Caption) Saja</span>
+                </>
+              )}
             </button>
             <button
               onClick={() => {
@@ -1426,10 +1434,22 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
                 <input
                   type="text"
                   value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    setNewTitle(e.target.value.toUpperCase());
+                    if (addModalError) setAddModalError(null);
+                  }}
                   placeholder="Contoh: GODA LEMON atau PERBEDAAN MESIN CUCI"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none uppercase text-xs"
+                  className={`w-full px-3 py-2 bg-slate-50 border rounded-lg font-bold text-slate-900 focus:bg-white focus:ring-2 focus:outline-none uppercase text-xs ${
+                    addModalError
+                      ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/50'
+                      : 'border-slate-200 focus:ring-indigo-500'
+                  }`}
                 />
+                {addModalError && (
+                  <p className="text-[11px] text-rose-600 font-semibold mt-1">
+                    {addModalError}
+                  </p>
+                )}
               </div>
 
               {/* Link Postingan */}
