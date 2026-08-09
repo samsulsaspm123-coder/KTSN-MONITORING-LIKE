@@ -1,6 +1,6 @@
 {
   "name": "Sistem Monitoring Like Instagram Karyawan Retail",
-  "description": "Aplikasi Web terintegrasi untuk pemantauan like Instagram karyawan retail, deteksi denda otomatis, generator jadwal desain elektronik harian (tanpa merk, auto-shift libur), dan laporan posting sosmed WhatsApp.",
+  "description": "Aplikasi Web terintegrasi untuk pemantauan like Instagram karyawan retail, pencarian stok produk persediaan PDF (Modul 1 dengan deteksi 1 unit kritis), generator jadwal desain elektronik harian, dan laporan posting sosmed WhatsApp.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

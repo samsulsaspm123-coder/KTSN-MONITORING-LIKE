@@ -102,4 +102,36 @@ export interface SosmedPostItem {
   order: number;
 }
 
+export type StockStatus = 'AMAN' | 'KRITIS' | 'KOSONG';
+
+export interface InventoryItem {
+  id: string;
+  merek: string;
+  kode: string;
+  nama: string;
+  tipeModel: string;
+  saldo: number;
+  gudang: string; // e.g. "GT001 [ TOKO ]", "GB001 [ BELAKANG ]"
+  gudangCode?: string; // e.g. "GT001"
+  category?: string; // e.g. "Kulkas", "Mesin Cuci", "TV", etc.
+}
+
+export interface InventoryGroupedBrand {
+  merek: string;
+  items: InventoryItem[];
+  totalQty: number;
+  totalTypes: number;
+  safeCount: number;
+  criticalCount: number;
+  emptyCount: number;
+}
+
+export interface InventoryReportMeta {
+  sourceDate: string; // e.g. "05/08/2026"
+  storeName: string; // e.g. "MEGA ELEKTRONIK GADGET AND HANDPHONE KERTOSONO"
+  lastUpdated: string;
+  totalItems: number;
+}
+
+
 

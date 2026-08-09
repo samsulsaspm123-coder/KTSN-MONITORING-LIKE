@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { RekapGenerator } from './components/RekapGenerator';
+import { InventoryPdfChecker } from './components/InventoryPdfChecker';
 import { DailyDesignGenerator } from './components/DailyDesignGenerator';
 import { SosmedReportManager } from './components/SosmedReportManager';
 import { EmployeeManager } from './components/EmployeeManager';
@@ -25,7 +26,8 @@ import {
   Sparkles,
   Zap,
   CheckCircle2,
-  Palette
+  Palette,
+  Package
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY_EMPLOYEES = 'likemonitor_employees_v1';
@@ -33,7 +35,7 @@ const LOCAL_STORAGE_KEY_STORE = 'likemonitor_store_code_v1';
 const LOCAL_STORAGE_KEY_FONT = 'likemonitor_font_family_v1';
 const LOCAL_STORAGE_KEY_SIZE = 'likemonitor_font_size_v1';
 
-const TAB_ORDER: ActiveTab[] = ['rekap', 'desain', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
+const TAB_ORDER: ActiveTab[] = ['rekap', 'stok', 'desain', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
 
 // Motion Variants for smooth horizontal swipe + vertical lift + subtle blur transitions
 const tabVariants = {
@@ -244,6 +246,12 @@ export default function App() {
       icon: MessageSquare,
       color: 'text-emerald-600 bg-emerald-100',
     },
+    stok: {
+      title: 'Pencarian Data Stok Produk (PDF Inventory Checker)',
+      subtitle: 'Cari tipe produk persediaan & deteksi otomatis ⚠️ Stok Kritis (1 Unit) vs ✅ Stok Aman',
+      icon: Package,
+      color: 'text-indigo-600 bg-indigo-100',
+    },
     desain: {
       title: 'Planning Aktifitas Harian & Jadwal Desain',
       subtitle: 'Format WA Planning Diselipkan Jadwal Desain • Mode Polos (Gbr 1) & Ceklist ✅ (Gbr 2)',
@@ -446,6 +454,15 @@ export default function App() {
                 />
               )}
 
+              {/* TAB: MODUL 1 - PENCARIAN DATA STOK PRODUK (PDF INVENTORY CHECKER) */}
+              {activeTab === 'stok' && (
+                <InventoryPdfChecker
+                  storeCode={storeCode}
+                  onNavigateToDesain={(product) => handleTabChange('desain')}
+                  onNavigateToSosmed={(title) => handleTabChange('sosmed')}
+                />
+              )}
+
               {/* TAB: DAILY ELECTRONICS DESIGN SCHEDULE GENERATOR (STRICT: TANPA MERK + AUTO SHIFT) */}
               {activeTab === 'desain' && (
                 <DailyDesignGenerator
@@ -543,6 +560,13 @@ export default function App() {
                 className="hover:text-indigo-600 cursor-pointer transition-colors"
               >
                 Generator Rekap
+              </button>
+              <span>&bull;</span>
+              <button
+                onClick={() => handleTabChange('stok')}
+                className="hover:text-indigo-600 cursor-pointer transition-colors font-bold text-indigo-700"
+              >
+                Cari Stok PDF
               </button>
               <span>&bull;</span>
               <button
