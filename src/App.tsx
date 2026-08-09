@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { RekapGenerator } from './components/RekapGenerator';
+import { DailyDesignGenerator } from './components/DailyDesignGenerator';
 import { SosmedReportManager } from './components/SosmedReportManager';
 import { EmployeeManager } from './components/EmployeeManager';
 import { GasDeployGuide } from './components/GasDeployGuide';
@@ -23,7 +24,8 @@ import {
   Clock,
   Sparkles,
   Zap,
-  CheckCircle2
+  CheckCircle2,
+  Palette
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY_EMPLOYEES = 'likemonitor_employees_v1';
@@ -31,7 +33,7 @@ const LOCAL_STORAGE_KEY_STORE = 'likemonitor_store_code_v1';
 const LOCAL_STORAGE_KEY_FONT = 'likemonitor_font_family_v1';
 const LOCAL_STORAGE_KEY_SIZE = 'likemonitor_font_size_v1';
 
-const TAB_ORDER: ActiveTab[] = ['rekap', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
+const TAB_ORDER: ActiveTab[] = ['rekap', 'desain', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
 
 // Motion Variants for smooth horizontal swipe + vertical lift + subtle blur transitions
 const tabVariants = {
@@ -242,6 +244,12 @@ export default function App() {
       icon: MessageSquare,
       color: 'text-emerald-600 bg-emerald-100',
     },
+    desain: {
+      title: 'Planning Aktifitas Harian & Jadwal Desain',
+      subtitle: 'Format WA Planning Diselipkan Jadwal Desain • Mode Polos (Gbr 1) & Ceklist ✅ (Gbr 2)',
+      icon: Palette,
+      color: 'text-emerald-600 bg-emerald-100',
+    },
     sosmed: {
       title: 'Laporan Posting Sosmed Harian (7 Post)',
       subtitle: '3-in-1 Combo: Teks Format WA + Link Postingan + Lampiran Foto Screenshot',
@@ -438,6 +446,14 @@ export default function App() {
                 />
               )}
 
+              {/* TAB: DAILY ELECTRONICS DESIGN SCHEDULE GENERATOR (STRICT: TANPA MERK + AUTO SHIFT) */}
+              {activeTab === 'desain' && (
+                <DailyDesignGenerator
+                  storeCode={storeCode}
+                  onOpenSosmedReport={() => handleTabChange('sosmed')}
+                />
+              )}
+
               {/* TAB: SOSMED REPORT GENERATOR (NEW MULTI-PLATFORM WHATSAPP REPORT BUILDER) */}
               {activeTab === 'sosmed' && (
                 <SosmedReportManager
@@ -527,6 +543,13 @@ export default function App() {
                 className="hover:text-indigo-600 cursor-pointer transition-colors"
               >
                 Generator Rekap
+              </button>
+              <span>&bull;</span>
+              <button
+                onClick={() => handleTabChange('desain')}
+                className="hover:text-purple-600 cursor-pointer transition-colors font-bold text-purple-700"
+              >
+                Daftar Desain
               </button>
               <span>&bull;</span>
               <button

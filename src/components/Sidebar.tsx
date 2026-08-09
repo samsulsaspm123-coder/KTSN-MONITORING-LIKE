@@ -21,10 +21,11 @@ import {
   AlertTriangle,
   Zap,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  Palette
 } from 'lucide-react';
 
-export type ActiveTab = 'rekap' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
+export type ActiveTab = 'rekap' | 'desain' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -82,6 +83,19 @@ export function Sidebar({
       inactiveBorder: 'border-emerald-200/60 hover:bg-emerald-50/70',
       badge: 'WA',
       badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+    },
+    {
+      id: 'desain' as ActiveTab,
+      label: 'Planning & Desain',
+      subtitle: 'Planning Harian + AI Jadwal Desain',
+      icon: Palette,
+      color: 'purple',
+      activeBg: 'bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 text-white shadow-purple-600/30 shadow-md ring-2 ring-purple-400/40',
+      activeIconBg: 'bg-white/25 text-white',
+      inactiveIconBg: 'bg-purple-100 text-purple-700',
+      inactiveBorder: 'border-purple-200/80 hover:bg-purple-50/80',
+      badge: 'PLANNING',
+      badgeClass: 'bg-purple-100 text-purple-900 border border-purple-300 font-black',
     },
     {
       id: 'sosmed' as ActiveTab,
