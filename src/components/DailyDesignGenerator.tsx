@@ -37,7 +37,8 @@ import {
   Settings,
   LayoutGrid,
   Columns,
-  Split
+  Split,
+  GripVertical
 } from 'lucide-react';
 import {
   ALLOWED_CATEGORIES,
@@ -234,6 +235,26 @@ export function DailyDesignGenerator({
   const [customPromoInput, setCustomPromoInput] = useState<string>('');
   const [customProductInput, setCustomProductInput] = useState<string>('');
   const [pickerTab, setPickerTab] = useState<'all' | 'promo' | 'gadget' | 'pendingin' | 'dapur' | 'entertainment'>('all');
+
+  // Drag Mode ON/OFF (Default: false = Mode Ringan & Anti-Lag)
+  const [dragMode, setDragMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('likemonitor_drag_mode_v1');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [draggingTaskIndex, setDraggingTaskIndex] = useState<number | null>(null);
+  const [dragOverTaskIndex, setDragOverTaskIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('likemonitor_drag_mode_v1', dragMode ? 'true' : 'false');
+    } catch {
+      // Ignore
+    }
+  }, [dragMode]);
 
   // Real-time task input detector
   const detectedNewTask = useMemo(() => {
@@ -792,6 +813,53 @@ export function DailyDesignGenerator({
     }
   };
 
+  // Drag & drop handlers for tasks (active only when dragMode is true)
+  const handleTaskDragStart = (e: React.DragEvent, index: number) => {
+    if (!dragMode) return;
+    setDraggingTaskIndex(index);
+    e.dataTransfer.setData('text/plain', index.toString());
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleTaskDragOver = (e: React.DragEvent, index: number) => {
+    if (!dragMode) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverTaskIndex !== index) {
+      setDragOverTaskIndex(index);
+    }
+  };
+
+  const handleTaskDragEnd = () => {
+    setDraggingTaskIndex(null);
+    setDragOverTaskIndex(null);
+  };
+
+  const handleTaskDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    setDragOverTaskIndex(null);
+    setDraggingTaskIndex(null);
+    if (!dragMode) return;
+
+    const rawSource = e.dataTransfer.getData('text/plain');
+    const sourceIndex = parseInt(rawSource, 10);
+    if (isNaN(sourceIndex) || sourceIndex === targetIndex) return;
+
+    const updated = [...tasks];
+    const [movedItem] = updated.splice(sourceIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
+    setTasks(updated);
+
+    const currentDesigns = updated.filter((t) => t.isDesignSlot && t.category).map((t) => t.category!);
+    setDesignCategories(currentDesigns);
+    const updatedWeeks = upsertDayInWeeks(spreadsheetWeeks, formattedSlash, currentDesigns);
+    setSpreadsheetWeeks(updatedWeeks);
+
+    if (autoSyncEnabled && webAppUrl) {
+      syncItemsToGoogleSheets(formattedSlash, currentDesigns);
+    }
+  };
+
   // Quick add from chip button
   const handleAddQuickCategory = (catName: string) => {
     const cleanCat = sanitizeToGenericCategory(catName);
@@ -1193,6 +1261,35 @@ export function DailyDesignGenerator({
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* DRAG MODE ON/OFF SWITCH */}
+                    <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+                      <GripVertical className="w-3.5 h-3.5 text-indigo-600" />
+                      <span className="text-[11px] font-bold text-slate-700">Drag:</span>
+                      <span
+                        className={`px-1 py-0.2 rounded text-[9px] font-black uppercase ${
+                          dragMode
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        }`}
+                      >
+                        {dragMode ? 'ON' : 'OFF (Ringan)'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDragMode((prev) => !prev)}
+                        className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ml-0.5 ${
+                          dragMode ? 'bg-indigo-600' : 'bg-slate-300 hover:bg-slate-400'
+                        }`}
+                        title={dragMode ? 'Matikan Drag Mode (Mode Ringan / Anti-Lag)' : 'Aktifkan Drag Mode (Geser & tukar baris tugas)'}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                            dragMode ? 'translate-x-3.5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => handleSetAllChecks(true)}
@@ -1227,6 +1324,8 @@ export function DailyDesignGenerator({
                       const isDesign = task.isDesignSlot;
                       const isEditing = editingTaskIndex === index;
                       const colorStyle = isDesign ? getProductColorStyle(task.category || task.text) : null;
+                      const isBeingDragged = draggingTaskIndex === index;
+                      const isDragTarget = dragOverTaskIndex === index && draggingTaskIndex !== index;
 
                       return (
                         <motion.div
@@ -1236,16 +1335,35 @@ export function DailyDesignGenerator({
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95 }}
                           transition={{ duration: 0.18 }}
+                          draggable={dragMode}
+                          onDragStart={(e) => handleTaskDragStart(e, index)}
+                          onDragOver={(e) => handleTaskDragOver(e, index)}
+                          onDragLeave={handleTaskDragEnd}
+                          onDragEnd={handleTaskDragEnd}
+                          onDrop={(e) => handleTaskDrop(e, index)}
                           className={`p-3 sm:p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                            isDesign
+                            isBeingDragged
+                              ? 'opacity-40 border-dashed border-indigo-400 scale-[0.98]'
+                              : isDragTarget
+                              ? 'border-indigo-500 ring-2 ring-indigo-500/40 bg-indigo-50/40'
+                              : isDesign
                               ? 'bg-slate-50/90 border-slate-300 shadow-2xs'
                               : task.isCompleted
                               ? 'bg-emerald-50/60 border-emerald-200'
                               : 'bg-slate-50/80 hover:bg-slate-100/80 border-slate-200'
                           }`}
                         >
-                          {/* Left: Checkbox + Bullet + Text */}
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {/* Left: Grip (if dragMode) + Checkbox + Bullet + Text */}
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            {dragMode && (
+                              <div
+                                className="cursor-grab active:cursor-grabbing p-1 rounded-md bg-slate-200/70 hover:bg-slate-300 text-slate-600 transition-colors shrink-0"
+                                title="Tahan & geser untuk mengubah urutan tugas"
+                              >
+                                <GripVertical className="w-3.5 h-3.5" />
+                              </div>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => handleToggleTaskCheck(index)}

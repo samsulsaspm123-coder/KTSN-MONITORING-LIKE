@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { RekapGenerator } from './components/RekapGenerator';
-import { InventoryPdfChecker } from './components/InventoryPdfChecker';
 import { DailyDesignGenerator } from './components/DailyDesignGenerator';
 import { SosmedReportManager } from './components/SosmedReportManager';
 import { EmployeeManager } from './components/EmployeeManager';
@@ -27,15 +26,17 @@ import {
   Zap,
   CheckCircle2,
   Palette,
-  Package
+  Minimize2,
+  Maximize2
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY_EMPLOYEES = 'likemonitor_employees_v1';
 const LOCAL_STORAGE_KEY_STORE = 'likemonitor_store_code_v1';
 const LOCAL_STORAGE_KEY_FONT = 'likemonitor_font_family_v1';
 const LOCAL_STORAGE_KEY_SIZE = 'likemonitor_font_size_v1';
+const LOCAL_STORAGE_KEY_COMPACT = 'likemonitor_compact_mode_v1';
 
-const TAB_ORDER: ActiveTab[] = ['rekap', 'stok', 'desain', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
+const TAB_ORDER: ActiveTab[] = ['rekap', 'desain', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
 
 // Motion Variants for smooth horizontal swipe + vertical lift + subtle blur transitions
 const tabVariants = {
@@ -133,6 +134,16 @@ export default function App() {
 
   const [isFontModalOpen, setIsFontModalOpen] = useState<boolean>(false);
 
+  // Compact Mode State (Hides verbose descriptions, instruction boxes & extra vertical paddings for clean/compact laptop screens)
+  const [compactMode, setCompactMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY_COMPACT);
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  });
+
   // Employee State with local storage persistence
   const [employees, setEmployees] = useState<Employee[]>(() => {
     try {
@@ -199,6 +210,15 @@ export default function App() {
     }
   }, [storeCode]);
 
+  // Save compact mode
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY_COMPACT, compactMode ? 'true' : 'false');
+    } catch {
+      // Ignore
+    }
+  }, [compactMode]);
+
   // Helper navigations with smooth swipe direction
   const handleOpenConsoleGuide = () => {
     setGasGuideDefaultTab('console-ig');
@@ -245,12 +265,6 @@ export default function App() {
       subtitle: 'Generator rekap harian WhatsApp otomatis, filter kuota, dan monitoring staff',
       icon: MessageSquare,
       color: 'text-emerald-600 bg-emerald-100',
-    },
-    stok: {
-      title: 'Pencarian Data Stok Produk (PDF Inventory Checker)',
-      subtitle: 'Cari tipe produk persediaan & deteksi otomatis ⚠️ Stok Kritis (1 Unit) vs ✅ Stok Aman',
-      icon: Package,
-      color: 'text-indigo-600 bg-indigo-100',
     },
     desain: {
       title: 'Planning Aktifitas Harian & Jadwal Desain',
@@ -316,6 +330,8 @@ export default function App() {
         storeCode={storeCode}
         currentFontName={currentFontObj.name}
         onOpenFontModal={() => setIsFontModalOpen(true)}
+        compactMode={compactMode}
+        onToggleCompactMode={() => setCompactMode((prev) => !prev)}
       />
 
       {/* ========================================================= */}
@@ -324,8 +340,12 @@ export default function App() {
       <div className="flex-1 min-w-0 flex flex-col min-h-screen">
         
         {/* TOP BREADCRUMB / STATUS HEADER ON DESKTOP */}
-        <header className="hidden lg:flex bg-white border-b border-slate-200 sticky top-0 z-20 px-6 py-3.5 items-center justify-between shadow-2xs">
-          <div className="flex items-center gap-3.5 min-w-0">
+        <header
+          className={`hidden lg:flex bg-white border-b border-slate-200 sticky top-0 z-20 px-6 items-center justify-between shadow-2xs transition-all ${
+            compactMode ? 'py-2.5' : 'py-3.5'
+          }`}
+        >
+          <div className="flex items-center gap-3 min-w-0">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={`header-breadcrumb-${activeTab}`}
@@ -333,32 +353,75 @@ export default function App() {
                 animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, x: 10, filter: 'blur(2px)' }}
                 transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                className="flex items-center gap-3.5 min-w-0"
+                className="flex items-center gap-3 min-w-0"
               >
                 <div
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${currentTabDetails.color}`}
+                  className={`rounded-xl flex items-center justify-center shrink-0 shadow-2xs transition-all ${
+                    compactMode ? 'w-8 h-8' : 'w-10 h-10'
+                  } ${currentTabDetails.color}`}
                 >
-                  <ActiveTabIcon className="w-5 h-5" />
+                  <ActiveTabIcon className={compactMode ? 'w-4 h-4' : 'w-5 h-5'} />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h1 className="text-base font-black text-slate-900 leading-tight truncate">
+                    <h1
+                      className={`font-black text-slate-900 leading-tight truncate ${
+                        compactMode ? 'text-sm' : 'text-base'
+                      }`}
+                    >
                       {currentTabDetails.title}
                     </h1>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase">
                       {storeCode}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
-                    {currentTabDetails.subtitle}
-                  </p>
+                  {!compactMode && (
+                    <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                      {currentTabDetails.subtitle}
+                    </p>
+                  )}
                 </div>
               </motion.div>
             </AnimatePresence>
           </div>
 
-          {/* Right Header Badges: Milestone Alert + Font + Connection */}
+          {/* Right Header Badges: Mode Ringkas Switch + Milestone Alert + Font + Connection */}
           <div className="flex items-center gap-2.5 shrink-0">
+            {/* Mode Ringkas Toggle Switch Button */}
+            <button
+              id="btn-header-compact-mode"
+              type="button"
+              onClick={() => setCompactMode((prev) => !prev)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer shadow-2xs ${
+                compactMode
+                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700 ring-2 ring-indigo-300/50 shadow-indigo-600/20'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 hover:border-indigo-400'
+              }`}
+              title={
+                compactMode
+                  ? 'Mode Ringkas AKTIF: Elemen deskripsi dan banner disembunyikan agar tampilan bersih, ringan, dan pas di layar laptop kecil. Klik untuk kembali ke Mode Normal.'
+                  : 'Aktifkan Mode Ringkas: Sembunyikan elemen deskripsi di setiap tab agar antarmuka lebih bersih & hemat ruang layar laptop.'
+              }
+            >
+              {compactMode ? (
+                <Minimize2 className="w-3.5 h-3.5 text-white" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
+              )}
+              <span className={compactMode ? 'text-white' : 'text-slate-600 font-medium'}>
+                Mode Ringkas:
+              </span>
+              <span
+                className={`px-1.5 py-0.2 rounded text-[10px] font-black uppercase tracking-wider ${
+                  compactMode
+                    ? 'bg-white text-indigo-900 shadow-2xs'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {compactMode ? 'ON' : 'OFF'}
+              </span>
+            </button>
+
             {/* Keyboard Shortcuts Hint Pill */}
             <div
               className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100/90 text-slate-600 border border-slate-200 text-xs font-semibold shadow-2xs"
@@ -430,7 +493,11 @@ export default function App() {
         </AnimatePresence>
 
         {/* MAIN BODY WORK AREA WITH HORIZONTAL SLIDE TRANSITION */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto overflow-hidden">
+        <main
+          className={`flex-1 max-w-[1600px] w-full mx-auto overflow-hidden transition-all ${
+            compactMode ? 'p-3 sm:p-4 lg:p-5' : 'p-4 sm:p-6 lg:p-8'
+          }`}
+        >
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={activeTab}
@@ -447,6 +514,7 @@ export default function App() {
                   employees={employees}
                   storeCode={storeCode}
                   setStoreCode={setStoreCode}
+                  compactMode={compactMode}
                   onOpenConsoleGuide={handleOpenConsoleGuide}
                   onOpenExtensionGuide={() => handleTabChange('extension')}
                   onOpenEmployeeManager={() => handleTabChange('karyawan')}
@@ -454,19 +522,11 @@ export default function App() {
                 />
               )}
 
-              {/* TAB: MODUL 1 - PENCARIAN DATA STOK PRODUK (PDF INVENTORY CHECKER) */}
-              {activeTab === 'stok' && (
-                <InventoryPdfChecker
-                  storeCode={storeCode}
-                  onNavigateToDesain={(product) => handleTabChange('desain')}
-                  onNavigateToSosmed={(title) => handleTabChange('sosmed')}
-                />
-              )}
-
               {/* TAB: DAILY ELECTRONICS DESIGN SCHEDULE GENERATOR (STRICT: TANPA MERK + AUTO SHIFT) */}
               {activeTab === 'desain' && (
                 <DailyDesignGenerator
                   storeCode={storeCode}
+                  compactMode={compactMode}
                   onOpenSosmedReport={() => handleTabChange('sosmed')}
                 />
               )}
@@ -475,6 +535,7 @@ export default function App() {
               {activeTab === 'sosmed' && (
                 <SosmedReportManager
                   storeCode={storeCode}
+                  compactMode={compactMode}
                 />
               )}
 
@@ -483,6 +544,7 @@ export default function App() {
                 <EmployeeManager
                   employees={employees}
                   setEmployees={setEmployees}
+                  compactMode={compactMode}
                   onNavigateToRekap={() => handleTabChange('rekap')}
                 />
               )}
@@ -490,23 +552,24 @@ export default function App() {
               {/* TAB 3: CHROME EXTENSION & BOOKMARKLET BUILDER */}
               {activeTab === 'extension' && (
                 <ExtensionManager
+                  compactMode={compactMode}
                   onNavigateToRekap={() => handleTabChange('rekap')}
                 />
               )}
 
               {/* TAB 4: GOOGLE APPS SCRIPT CODE VIEWER */}
               {activeTab === 'code' && (
-                <GasDeployGuide defaultTab="code-gs" />
+                <GasDeployGuide defaultTab="code-gs" compactMode={compactMode} />
               )}
 
               {/* TAB 5: STEP BY STEP DEPLOY GUIDE */}
               {activeTab === 'guide' && (
-                <GasDeployGuide defaultTab="step-by-step" />
+                <GasDeployGuide defaultTab="step-by-step" compactMode={compactMode} />
               )}
 
               {/* TAB 6: INSTAGRAM CONSOLE HELPER SCRIPT */}
               {activeTab === 'console' && (
-                <GasDeployGuide defaultTab="console-ig" />
+                <GasDeployGuide defaultTab="console-ig" compactMode={compactMode} />
               )}
             </motion.div>
           </AnimatePresence>
@@ -563,17 +626,10 @@ export default function App() {
               </button>
               <span>&bull;</span>
               <button
-                onClick={() => handleTabChange('stok')}
-                className="hover:text-indigo-600 cursor-pointer transition-colors font-bold text-indigo-700"
-              >
-                Cari Stok PDF
-              </button>
-              <span>&bull;</span>
-              <button
                 onClick={() => handleTabChange('desain')}
                 className="hover:text-purple-600 cursor-pointer transition-colors font-bold text-purple-700"
               >
-                Daftar Desain
+                Planning &amp; Desain
               </button>
               <span>&bull;</span>
               <button

@@ -23,10 +23,11 @@ import {
   ExternalLink,
   ShieldCheck,
   Palette,
-  Package
+  Minimize2,
+  Maximize2
 } from 'lucide-react';
 
-export type ActiveTab = 'rekap' | 'stok' | 'desain' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
+export type ActiveTab = 'rekap' | 'desain' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -35,6 +36,8 @@ interface SidebarProps {
   storeCode: string;
   currentFontName?: string;
   onOpenFontModal?: () => void;
+  compactMode?: boolean;
+  onToggleCompactMode?: () => void;
 }
 
 export function Sidebar({
@@ -44,6 +47,8 @@ export function Sidebar({
   storeCode,
   currentFontName = 'Plus Jakarta Sans',
   onOpenFontModal,
+  compactMode = false,
+  onToggleCompactMode,
 }: SidebarProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -84,19 +89,6 @@ export function Sidebar({
       inactiveBorder: 'border-emerald-200/60 hover:bg-emerald-50/70',
       badge: 'WA',
       badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
-    },
-    {
-      id: 'stok' as ActiveTab,
-      label: 'Cari Stok PDF',
-      subtitle: 'Stok Persediaan & Cek 1 Unit',
-      icon: Package,
-      color: 'indigo',
-      activeBg: 'bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 text-white shadow-indigo-600/30 shadow-md ring-2 ring-indigo-400/40',
-      activeIconBg: 'bg-white/25 text-white',
-      inactiveIconBg: 'bg-indigo-100 text-indigo-700',
-      inactiveBorder: 'border-indigo-200/80 hover:bg-indigo-50/80',
-      badge: 'MODUL 1',
-      badgeClass: 'bg-indigo-100 text-indigo-950 border border-indigo-300 font-black',
     },
     {
       id: 'desain' as ActiveTab,

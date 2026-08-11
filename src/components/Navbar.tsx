@@ -15,7 +15,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
-export type ActiveTab = 'rekap' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
+export type ActiveTab = 'rekap' | 'desain' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
 
 interface NavbarProps {
   activeTab: ActiveTab;

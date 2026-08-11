@@ -36,7 +36,10 @@ import {
   MousePointerClick,
   FileCheck,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  GripVertical,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { SosmedPostItem, SocialPlatform, PostContentType, TimeSlot } from '../types';
 import { DEFAULT_SOSMED_POSTS, SOSMED_PLATFORM_CONFIG } from '../data/defaultSosmedPosts';
@@ -91,6 +94,26 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
   // Active filter tab
   const [filterSlot, setFilterSlot] = useState<string>('all');
   const [filterPlatform, setFilterPlatform] = useState<string>('all');
+
+  // Drag Mode ON/OFF (Default: false = Mode Ringan & Anti-Lag)
+  const [dragMode, setDragMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('likemonitor_drag_mode_v1');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('likemonitor_drag_mode_v1', dragMode ? 'true' : 'false');
+    } catch {
+      // Ignore
+    }
+  }, [dragMode]);
 
   // Copied indicator states
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -380,6 +403,61 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
       }));
       setPosts(resetList);
     }
+  };
+
+  // Move post position up or down (Ultra Lightweight: 0% overhead, anti-lag)
+  const movePost = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= posts.length) return;
+    const next = [...posts];
+    const temp = next[index];
+    next[index] = next[targetIndex];
+    next[targetIndex] = temp;
+    next.forEach((p, i) => {
+      p.order = i + 1;
+    });
+    setPosts(next);
+  };
+
+  // Drag & Drop Handlers (Active only when dragMode === true)
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (!dragMode) return;
+    setDraggingIndex(index);
+    e.dataTransfer.setData('text/plain', index.toString());
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    if (!dragMode) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggingIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    setDragOverIndex(null);
+    setDraggingIndex(null);
+    if (!dragMode) return;
+
+    const rawSourceIndex = e.dataTransfer.getData('text/plain');
+    const sourceIndex = parseInt(rawSourceIndex, 10);
+    if (isNaN(sourceIndex) || sourceIndex === targetIndex) return;
+
+    const next = [...posts];
+    const [draggedItem] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, draggedItem);
+    next.forEach((p, i) => {
+      p.order = i + 1;
+    });
+    setPosts(next);
   };
 
   // Format single post message for WhatsApp: [JUDUL][KOMA+SPASI][NAMA POSTINGAN][SPASI][LINK]
@@ -763,7 +841,7 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
       </div>
 
       {/* Filter Tabs & Bulk Actions Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
         
         {/* Filter Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
@@ -803,8 +881,42 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
           ))}
         </div>
 
-        {/* Bulk Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Right Tools: Drag Mode Toggle & Bulk Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          
+          {/* DRAG MODE ON/OFF SWITCH (RINGAN / ANTI-LAG) */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1.5">
+                <GripVertical className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="text-xs font-bold text-slate-800">Drag Mode:</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${
+                    dragMode
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  }`}
+                >
+                  {dragMode ? 'ON' : 'OFF (Ringan)'}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDragMode((prev) => !prev)}
+              className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                dragMode ? 'bg-indigo-600' : 'bg-slate-300 hover:bg-slate-400'
+              }`}
+              title={dragMode ? 'Matikan Drag Mode (Mode Ringan / Anti-Lag)' : 'Aktifkan Drag Mode (Bisa geser & tukar kartu)'}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                  dragMode ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
           <button
             onClick={handleCopyFullReport}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
@@ -815,7 +927,7 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
             title="Salin rekap seluruh 7 postingan sekaligus dalam 1 format rapi"
           >
             {copiedAll ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Clipboard className="w-3.5 h-3.5 text-slate-600" />}
-            <span>{copiedAll ? 'Rekap Tersalin!' : 'Salin Rekap Harian (7 Post)'}</span>
+            <span>{copiedAll ? 'Rekap Tersalin!' : 'Salin Rekap Harian'}</span>
           </button>
 
           <button
@@ -824,7 +936,7 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
             title="Buka WhatsApp dengan seluruh rekap 7 postingan terisi otomatis"
           >
             <Send className="w-3.5 h-3.5" />
-            <span>Kirim Rekap ke WA</span>
+            <span>Kirim ke WA</span>
           </button>
         </div>
 
@@ -839,13 +951,25 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
           const isImageCopied = copiedImageId === post.id;
           const isComboCopied = copiedComboId === post.id;
           const isCardActive = activePasteCardId === post.id;
+          const isBeingDragged = draggingIndex === idx;
+          const isDragTarget = dragOverIndex === idx && draggingIndex !== idx;
 
           return (
             <div
               key={post.id}
               onClick={() => setActivePasteCardId(post.id)}
+              draggable={dragMode}
+              onDragStart={(e) => handleDragStart(e, idx)}
+              onDragOver={(e) => handleDragOver(e, idx)}
+              onDragLeave={handleDragEnd}
+              onDragEnd={handleDragEnd}
+              onDrop={(e) => handleDrop(e, idx)}
               className={`bg-white rounded-2xl border transition-all duration-200 shadow-xs hover:shadow-md flex flex-col justify-between overflow-hidden relative ${
-                post.isCompleted
+                isBeingDragged
+                  ? 'opacity-40 border-dashed border-indigo-400 scale-[0.98]'
+                  : isDragTarget
+                  ? 'border-indigo-500 ring-2 ring-indigo-500/40 bg-indigo-50/30'
+                  : post.isCompleted
                   ? 'border-emerald-200 bg-emerald-50/20'
                   : isCardActive
                   ? 'border-indigo-500 ring-2 ring-indigo-500/20'
@@ -856,6 +980,21 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
               {/* Card Header */}
               <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-2 bg-gradient-to-r from-slate-50 to-white">
                 <div className="flex items-center gap-2">
+                  {/* Grip Handle for Drag Mode */}
+                  {dragMode && (
+                    <div
+                      className="cursor-grab active:cursor-grabbing p-1 rounded-md bg-slate-200/70 hover:bg-slate-300 text-slate-600 transition-colors"
+                      title="Tahan & geser untuk mengubah urutan postingan"
+                    >
+                      <GripVertical className="w-3.5 h-3.5" />
+                    </div>
+                  )}
+
+                  {/* Post Number Badge */}
+                  <span className="w-5 h-5 rounded-md bg-slate-200 text-slate-700 text-[11px] font-black flex items-center justify-center shrink-0">
+                    #{idx + 1}
+                  </span>
+
                   <span className={`px-2.5 py-1 rounded-lg text-xs font-black tracking-wide flex items-center gap-1 shadow-2xs ${config.badgeBg}`}>
                     {post.platform === 'IG' && <Instagram className="w-3 h-3" />}
                     {post.platform === 'FB' && <Facebook className="w-3 h-3" />}
@@ -872,8 +1011,36 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportMan
                   </span>
                 </div>
 
-                {/* Right Header Checkbox & Delete */}
-                <div className="flex items-center gap-1.5">
+                {/* Right Header: Move Up/Down + Status + Delete */}
+                <div className="flex items-center gap-1">
+                  {/* Move Up/Down Quick Buttons */}
+                  <div className="flex items-center gap-0.5 mr-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        movePost(idx, 'up');
+                      }}
+                      disabled={idx === 0}
+                      className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                      title="Pindah urutan ke atas"
+                    >
+                      <ArrowUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        movePost(idx, 'down');
+                      }}
+                      disabled={idx === posts.length - 1}
+                      className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                      title="Pindah urutan ke bawah"
+                    >
+                      <ArrowDown className="w-3 h-3" />
+                    </button>
+                  </div>
+
                   <button
                     type="button"
                     onClick={(e) => {
