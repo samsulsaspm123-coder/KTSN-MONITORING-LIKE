@@ -208,12 +208,15 @@ export function Sidebar({
             {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5 text-indigo-600" />}
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-700 to-purple-600 text-white font-black flex items-center justify-center text-sm shadow-xs">
-              {storeInitial}
-            </div>
+            <img
+              src="/pwa-192x192.png"
+              alt="SA Logo"
+              className="w-8 h-8 rounded-xl shadow-xs border border-blue-400/40 object-cover"
+            />
             <div>
-              <h1 className="text-sm font-black text-slate-900 leading-tight">
-                {storeCode} Monitoring
+              <h1 className="text-sm font-black text-slate-900 leading-tight flex items-center gap-1.5">
+                <span>{storeCode}</span>
+                <span className="text-[10px] px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded font-black">SA</span>
               </h1>
               <p className="text-[10px] text-slate-500 font-semibold uppercase">
                 Instagram Like System
@@ -275,8 +278,13 @@ export function Sidebar({
         <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-b from-slate-50/80 to-white shrink-0">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-gradient-to-tr from-indigo-700 via-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shrink-0 shadow-md border border-indigo-400/30">
-                {storeInitial}
+              <div className="relative">
+                <img
+                  src="/pwa-192x192.png"
+                  alt="SA App Icon"
+                  className="w-11 h-11 rounded-2xl shadow-md border border-blue-400/40 object-cover"
+                />
+                <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white" title="Sistem Aktif" />
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
@@ -285,14 +293,14 @@ export function Sidebar({
                   </h2>
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
-                    Live System
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-100 text-blue-800 border border-blue-300 uppercase tracking-wider">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1 animate-pulse" />
+                    PWA Ready
                   </span>
-                  <span className="text-[10px] text-slate-400 font-bold">v2.4.0</span>
+                  <span className="text-[10px] text-slate-400 font-bold">v2.5.0</span>
                 </div>
                 <p className="text-[10px] text-slate-500 font-semibold tracking-wide uppercase mt-1">
-                  Retail Instagram Audit
+                  Retail Instagram & Planning
                 </p>
               </div>
             </div>

@@ -38,6 +38,7 @@ interface RekapGeneratorProps {
   employees: Employee[];
   storeCode: string;
   setStoreCode: (code: string) => void;
+  compactMode?: boolean;
   onOpenConsoleGuide: () => void;
   onOpenExtensionGuide?: () => void;
   onOpenEmployeeManager: () => void;
@@ -48,6 +49,7 @@ export function RekapGenerator({
   employees,
   storeCode,
   setStoreCode,
+  compactMode = false,
   onOpenConsoleGuide,
   onOpenExtensionGuide,
   onOpenEmployeeManager,

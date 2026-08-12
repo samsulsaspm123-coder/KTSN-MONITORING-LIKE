@@ -24,9 +24,10 @@ import {
 
 interface GasDeployGuideProps {
   defaultTab?: 'code-gs' | 'index-html' | 'sheet-template' | 'step-by-step' | 'console-ig';
+  compactMode?: boolean;
 }
 
-export function GasDeployGuide({ defaultTab = 'code-gs' }: GasDeployGuideProps) {
+export function GasDeployGuide({ defaultTab = 'code-gs', compactMode = false }: GasDeployGuideProps) {
   const [subTab, setSubTab] = useState<'code-gs' | 'index-html' | 'sheet-template' | 'step-by-step' | 'console-ig'>(
     defaultTab
   );

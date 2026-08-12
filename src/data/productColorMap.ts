@@ -58,6 +58,15 @@ export const PRODUCT_COLOR_PALETTE: Record<string, ProductColorStyle> = {
     tailwindText: 'text-[#01579b] font-bold',
     categoryGroup: 'pendingin',
   },
+  'DUDUKAN KULKAS': {
+    id: 'dudukan_kulkas',
+    name: 'DUDUKAN KULKAS',
+    bgHex: '#81d4fa', // Sky Blue
+    textHex: '#01579b',
+    tailwindBg: 'bg-[#81d4fa]',
+    tailwindText: 'text-[#01579b] font-bold',
+    categoryGroup: 'pendingin',
+  },
   'MESIN CUCI': {
     id: 'mesin_cuci',
     name: 'MESIN CUCI',

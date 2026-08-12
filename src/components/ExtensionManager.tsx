@@ -30,11 +30,12 @@ import {
 import { INSTAGRAM_CONSOLE_SCRIPT } from '../data/gasCodeSnippets';
 
 interface ExtensionManagerProps {
+  compactMode?: boolean;
   onNavigateToRekap?: () => void;
   onImportLikersToRekap?: (text: string) => void;
 }
 
-export function ExtensionManager({ onNavigateToRekap }: ExtensionManagerProps) {
+export function ExtensionManager({ compactMode = false, onNavigateToRekap }: ExtensionManagerProps) {
   const [activeSubTab, setActiveSubTab] = useState<'extension-zip' | 'bookmarklet' | 'console-script' | 'file-preview'>('extension-zip');
   const [activeFilePreview, setActiveFilePreview] = useState<'manifest' | 'popup-html' | 'popup-js' | 'readme'>('manifest');
   const [isDownloading, setIsDownloading] = useState<boolean>(false);

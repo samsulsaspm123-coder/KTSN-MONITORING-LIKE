@@ -19,7 +19,7 @@ export const ALLOWED_CATEGORIES: CategoryGroup[] = [
     id: 'pendingin',
     name: 'Pendingin & Elektronik Besar',
     badgeColor: 'bg-cyan-100 text-cyan-800 border-cyan-200',
-    items: ['KULKAS', 'MESIN CUCI', 'AC', 'SHOWCASE', 'FREEZER', 'FREEZER BOX', 'WATER HEATER'],
+    items: ['KULKAS', 'MESIN CUCI', 'AC', 'SHOWCASE', 'FREEZER', 'FREEZER BOX', 'WATER HEATER', 'DUDUKAN KULKAS'],
   },
   {
     id: 'dapur',
@@ -183,6 +183,7 @@ export function sanitizeToGenericCategory(raw: string): string {
   if (clean.includes('FREEZER BOX')) return 'FREEZER BOX';
   if (clean.includes('FREEZER')) return 'FREEZER';
   if (clean.includes('MESIN CUCI') || clean.includes('WASHER') || clean.includes('DRYER') || (clean.includes('CUCI') && !clean.includes('PIRING'))) return 'MESIN CUCI';
+  if (clean.includes('DUDUKAN KULKAS') || clean.includes('ALAS KULKAS') || clean.includes('KAKI KULKAS')) return 'DUDUKAN KULKAS';
   if (clean.includes('KULKAS') || clean.includes('LEMARI ES')) return 'KULKAS';
   if ((clean.includes('AC') || clean.includes('AIR CONDITIONER') || clean.includes('AIR COOLER')) && !clean.includes('AKSES')) return 'AC';
   if (clean.includes('GOOGLE TV') || clean.includes('TV') || clean.includes('TELEVISI') || clean.includes('SMART TV') || clean.includes('ANDROID TV') || clean.includes('LED TV')) return 'TV';
@@ -259,6 +260,7 @@ export function detectTaskType(input: string): {
   // 4. Check for electronics keywords
   const isElectronicKeyword =
     rawUpper.includes('TV') ||
+    rawUpper.includes('DUDUKAN KULKAS') ||
     rawUpper.includes('KULKAS') ||
     rawUpper.includes('MESIN CUCI') ||
     rawUpper.includes('AC') ||

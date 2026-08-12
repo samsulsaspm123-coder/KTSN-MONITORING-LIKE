@@ -85,11 +85,13 @@ const LOCAL_STORAGE_KEY_AUTO_SYNC = 'likemonitor_design_auto_sync_v2';
 interface DailyDesignGeneratorProps {
   storeCode?: string;
   onOpenSosmedReport?: () => void;
+  compactMode?: boolean;
 }
 
 export function DailyDesignGenerator({
   storeCode = 'MEGA KTSN',
   onOpenSosmedReport,
+  compactMode = false,
 }: DailyDesignGeneratorProps) {
   // Current Date State
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -276,6 +278,54 @@ export function DailyDesignGenerator({
       // ignore
     }
   }, [employeeName, queueIndex, lastGeneratedDate, tasks, historyRecords, spreadsheetWeeks, webAppUrl, autoSyncEnabled]);
+
+  // Real-time synchronization state & background sync debouncer
+  const isInitialRenderRef = React.useRef(true);
+  const [realtimeSyncStatus, setRealtimeSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+
+  // Debounced Auto-Sync to Google Sheets when spreadsheetWeeks or employeeName changes
+  useEffect(() => {
+    if (isInitialRenderRef.current) {
+      isInitialRenderRef.current = false;
+      return;
+    }
+    if (!autoSyncEnabled || !webAppUrl || !webAppUrl.trim().startsWith('http')) {
+      return;
+    }
+
+    setRealtimeSyncStatus('syncing');
+    const timer = setTimeout(async () => {
+      try {
+        const payload = {
+          action: 'syncAllWeeks',
+          weeks: spreadsheetWeeks,
+          employee: employeeName,
+          store: storeCode,
+          timestamp: new Date().toISOString(),
+        };
+
+        const res = await fetch(webAppUrl.trim(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          setRealtimeSyncStatus('synced');
+          setTimeout(() => setRealtimeSyncStatus('idle'), 3000);
+        } else {
+          setRealtimeSyncStatus('error');
+        }
+      } catch (e) {
+        console.error('Realtime auto sync error:', e);
+        setRealtimeSyncStatus('error');
+      }
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [spreadsheetWeeks, autoSyncEnabled, webAppUrl, employeeName, storeCode]);
 
   // Formatted Output Messages
   const plainTextMessage = useMemo(() => {
@@ -560,6 +610,53 @@ export function DailyDesignGenerator({
   };
 
   /**
+   * Helper to rebuild tasks by injecting design items into existing pre- and post-tasks
+   */
+  const injectDesignSlotsIntoTaskList = (currentTasks: PlanningTaskItem[], newDesignCats: string[]): PlanningTaskItem[] => {
+    const nonDesignTasks = currentTasks.filter((t) => !t.isDesignSlot);
+    const designTaskItems: PlanningTaskItem[] = newDesignCats.map((cat, idx) => ({
+      id: `design-${Date.now()}-${idx}-${cat}`,
+      text: formatToDesignTaskText(cat),
+      isDesignSlot: true,
+      category: cat,
+      isCompleted: false,
+    }));
+
+    const insertAnchorIndex = nonDesignTasks.findIndex((t) =>
+      t.text.includes('DESAIN ELEKTRONIK') || t.text.includes('HOME APPIANCE')
+    );
+
+    if (insertAnchorIndex !== -1) {
+      const before = nonDesignTasks.slice(0, insertAnchorIndex + 1);
+      const after = nonDesignTasks.slice(insertAnchorIndex + 1);
+      return [...before, ...designTaskItems, ...after];
+    } else {
+      const mid = Math.floor(nonDesignTasks.length / 2);
+      return [
+        ...nonDesignTasks.slice(0, mid),
+        ...designTaskItems,
+        ...nonDesignTasks.slice(mid),
+      ];
+    }
+  };
+
+  /**
+   * When weeks are updated from Spreadsheet View (Gambar 2):
+   * 1. Save new spreadsheet weeks
+   * 2. Immediately update the Planning Harian tasks and design categories for the active day!
+   */
+  const handleUpdateSpreadsheetWeeks = (newWeeks: SheetWeekRow[]) => {
+    setSpreadsheetWeeks(newWeeks);
+
+    const foundDay = findDayInWeeks(newWeeks, formattedSlash);
+    if (foundDay) {
+      const dayItems = foundDay.items || [];
+      setDesignCategories(dayItems);
+      setTasks((prevTasks) => injectDesignSlotsIntoTaskList(prevTasks, dayItems));
+    }
+  };
+
+  /**
    * Selecting a day from Spreadsheet Matrix loads those items into the Planning WA generator!
    * Also updates the active currentDate so editing and syncing target this exact day.
    */
@@ -577,38 +674,11 @@ export function DailyDesignGenerator({
       }
     }
 
-    // 2. Convert items into design tasks
+    // 2. Convert items into design tasks and update task list & design categories
     const cleanItems = items.length > 0 ? items : ['KULKAS', 'SEPEDA LISTRIK', 'TV'];
     setDesignCategories(cleanItems);
+    setTasks((prevTasks) => injectDesignSlotsIntoTaskList(prevTasks, cleanItems));
 
-    const designTaskItems: PlanningTaskItem[] = cleanItems.map((cat, idx) => ({
-      id: `design-sheet-${Date.now()}-${idx}`,
-      text: formatToDesignTaskText(cat),
-      isDesignSlot: true,
-      category: cat,
-      isCompleted: false,
-    }));
-
-    const nonDesignTasks = tasks.filter((t) => !t.isDesignSlot);
-    const insertAnchorIndex = nonDesignTasks.findIndex((t) =>
-      t.text.includes('DESAIN ELEKTRONIK') || t.text.includes('HOME APPIANCE')
-    );
-
-    let updatedTaskList: PlanningTaskItem[] = [];
-    if (insertAnchorIndex !== -1) {
-      const before = nonDesignTasks.slice(0, insertAnchorIndex + 1);
-      const after = nonDesignTasks.slice(insertAnchorIndex + 1);
-      updatedTaskList = [...before, ...designTaskItems, ...after];
-    } else {
-      const mid = Math.floor(nonDesignTasks.length / 2);
-      updatedTaskList = [
-        ...nonDesignTasks.slice(0, mid),
-        ...designTaskItems,
-        ...nonDesignTasks.slice(mid),
-      ];
-    }
-
-    setTasks(updatedTaskList);
     setSyncStatusToast({
       message: `Item desain tanggal ${dateSlash} (${cleanItems.join(', ')}) dimuat ke Planning Harian!`,
       type: 'success',
@@ -637,6 +707,13 @@ export function DailyDesignGenerator({
         const found = findDayInWeeks(spreadsheetWeeks, slash);
         if (found && found.items && found.items.length > 0) {
           handleSelectDateFromSpreadsheet(slash, found.items);
+        } else {
+          // If not in spreadsheet, generate a balanced set and add it
+          const generatedItems = generateBalancedSet(newD, queueIndex);
+          setDesignCategories(generatedItems);
+          setTasks((prev) => injectDesignSlotsIntoTaskList(prev, generatedItems));
+          const updatedWeeks = upsertDayInWeeks(spreadsheetWeeks, slash, generatedItems);
+          setSpreadsheetWeeks(updatedWeeks);
         }
       }
     }
@@ -956,7 +1033,13 @@ export function DailyDesignGenerator({
       isCompleted: false,
     }));
 
-    setTasks([...pre, ...designs, ...post]);
+    const newTasks = [...pre, ...designs, ...post];
+    setTasks(newTasks);
+
+    const currentDesigns = newTasks.filter((t) => t.isDesignSlot && t.category).map((t) => t.category!);
+    setDesignCategories(currentDesigns);
+    const updatedWeeks = upsertDayInWeeks(spreadsheetWeeks, formattedSlash, currentDesigns);
+    setSpreadsheetWeeks(updatedWeeks);
   };
 
   const completedCount = tasks.filter((t) => t.isCompleted).length;
@@ -1052,6 +1135,12 @@ export function DailyDesignGenerator({
                     const found = findDayInWeeks(spreadsheetWeeks, slash);
                     if (found && found.items && found.items.length > 0) {
                       handleSelectDateFromSpreadsheet(slash, found.items);
+                    } else {
+                      const generatedItems = generateBalancedSet(today, queueIndex);
+                      setDesignCategories(generatedItems);
+                      setTasks((prev) => injectDesignSlotsIntoTaskList(prev, generatedItems));
+                      const updatedWeeks = upsertDayInWeeks(spreadsheetWeeks, slash, generatedItems);
+                      setSpreadsheetWeeks(updatedWeeks);
                     }
                   }}
                   title="Kembali ke Tanggal Hari Ini"
@@ -1174,21 +1263,23 @@ export function DailyDesignGenerator({
       {(activeTab === 'spreadsheet' || activeTab === 'split') && (
         <DesignSpreadsheetView
           weeks={spreadsheetWeeks}
-          onUpdateWeeks={setSpreadsheetWeeks}
-          selectedDate={formattedSlash}
+          onUpdateWeeks={handleUpdateSpreadsheetWeeks}
+          selectedDateSlash={formattedSlash}
           onSelectDate={handleSelectDateFromSpreadsheet}
           onOpenSyncSettings={() => setIsSyncModalOpen(true)}
           onSyncToCloud={async () => {
             const currentDesigns = tasks
               .filter((t) => t.isDesignSlot && t.category)
               .map((t) => t.category!);
-            await syncItemsToGoogleSheets(formattedSlash, currentDesigns);
+            return await syncItemsToGoogleSheets(formattedSlash, currentDesigns);
           }}
           onSyncSingleDay={syncItemsToGoogleSheets}
           onPushAllWeeksToCloud={pushAllWeeksToGoogleSheets}
           onPullFromCloud={pullFromGoogleSheets}
           isSyncing={isSyncing}
+          realtimeSyncStatus={realtimeSyncStatus}
           webAppUrl={webAppUrl}
+          compactMode={compactMode}
         />
       )}
 
@@ -1757,7 +1848,7 @@ export function DailyDesignGenerator({
                       <Sparkle className="w-3 h-3 text-amber-500" />
                       Tambah Cepat:
                     </span>
-                    {['TV', 'KULKAS', 'AC', 'MESIN CUCI', 'SEPEDA LISTRIK', 'LAPTOP', 'HP', 'MAGIC COM'].map((quickItem) => {
+                    {['DUDUKAN KULKAS', 'SETRIKA', 'TV', 'KULKAS', 'AC', 'MESIN CUCI', 'SEPEDA LISTRIK', 'LAPTOP', 'MAGIC COM', 'WATER HEATER'].map((quickItem) => {
                       const style = getProductColorStyle(quickItem);
                       return (
                         <button

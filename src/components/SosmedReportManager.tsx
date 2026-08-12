@@ -50,9 +50,10 @@ const LOCAL_STORAGE_KEY_STORE_NAME = 'likemonitor_sosmed_store_name_v1';
 
 interface SosmedReportManagerProps {
   storeCode?: string;
+  compactMode?: boolean;
 }
 
-export function SosmedReportManager({ storeCode = 'MEGA KTSN' }: SosmedReportManagerProps) {
+export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = false }: SosmedReportManagerProps) {
   // Store branding / prefix name
   const [storeName, setStoreName] = useState<string>(() => {
     try {

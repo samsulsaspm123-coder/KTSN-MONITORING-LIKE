@@ -22,10 +22,11 @@ import { DEFAULT_EMPLOYEES } from '../data/defaultEmployees';
 interface EmployeeManagerProps {
   employees: Employee[];
   setEmployees: (employees: Employee[]) => void;
+  compactMode?: boolean;
   onNavigateToRekap: () => void;
 }
 
-export function EmployeeManager({ employees, setEmployees, onNavigateToRekap }: EmployeeManagerProps) {
+export function EmployeeManager({ employees, setEmployees, compactMode = false, onNavigateToRekap }: EmployeeManagerProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDivisi, setSelectedDivisi] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
