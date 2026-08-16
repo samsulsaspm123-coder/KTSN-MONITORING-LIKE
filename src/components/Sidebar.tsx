@@ -29,6 +29,8 @@ import {
   Sun
 } from 'lucide-react';
 import { ThemeMode } from '../types';
+import { AppLogo } from './AppLogo';
+import { LocalStorageGauge } from './LocalStorageGauge';
 
 export type ActiveTab = 'rekap' | 'desain' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
 
@@ -215,11 +217,7 @@ export function Sidebar({
             {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5 text-indigo-600" />}
           </button>
           <div className="flex items-center gap-2">
-            <img
-              src="/pwa-192x192.png"
-              alt="SA Logo"
-              className="w-8 h-8 rounded-xl shadow-xs border border-blue-400/40 object-cover"
-            />
+            <AppLogo size="sm" showLiveDot={false} />
             <div>
               <h1 className="text-sm font-black text-slate-900 leading-tight flex items-center gap-1.5">
                 <span>{storeCode}</span>
@@ -300,14 +298,7 @@ export function Sidebar({
         <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-b from-slate-50/80 to-white shrink-0">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <img
-                  src="/pwa-192x192.png"
-                  alt="SA App Icon"
-                  className="w-11 h-11 rounded-2xl shadow-md border border-blue-400/40 object-cover"
-                />
-                <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white" title="Sistem Aktif" />
-              </div>
+              <AppLogo size="md" />
               <div>
                 <div className="flex items-center gap-1.5">
                   <h2 className="text-base font-black text-slate-900 leading-tight tracking-tight">
@@ -554,6 +545,9 @@ export function Sidebar({
               Connected
             </span>
           </div>
+
+          {/* Real-time Local Storage Usage Monitor Gauge */}
+          <LocalStorageGauge />
         </div>
       </aside>
     </>
