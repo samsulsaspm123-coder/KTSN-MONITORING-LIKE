@@ -30,7 +30,7 @@ import {
   Clipboard
 } from 'lucide-react';
 import { Employee, LikersProcessResult } from '../types';
-import { processLikersData, formatDateIndo, generateWhatsAppLink, extractUsernamesFromRawText } from '../utils/likersParser';
+import { processLikersData, formatDateIndo, generateWhatsAppLink, extractUsernamesFromRawText, compareDivisions } from '../utils/likersParser';
 import { INSTAGRAM_CONSOLE_SCRIPT } from '../data/gasCodeSnippets';
 import { BOOKMARKLET_CODE } from '../data/extensionFiles';
 
@@ -281,11 +281,11 @@ export function RekapGenerator({
     });
   }, [result, searchQuery, selectedDivFilter, selectedStatusFilter]);
 
-  // Unique divisions for filter dropdown
+  // Unique divisions for filter dropdown (sorted by branch priority: NGK -> WRJ -> KTSN)
   const divisionList = useMemo(() => {
     const set = new Set<string>();
     employees.forEach((e) => set.add(e.divisi));
-    return Array.from(set).sort();
+    return Array.from(set).sort(compareDivisions);
   }, [employees]);
 
   return (

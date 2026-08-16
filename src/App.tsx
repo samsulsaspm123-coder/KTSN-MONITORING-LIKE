@@ -9,7 +9,7 @@ import { GasDeployGuide } from './components/GasDeployGuide';
 import { ExtensionManager } from './components/ExtensionManager';
 import { FontPickerModal } from './components/FontPickerModal';
 import { GlobalMilestonePopup } from './components/GlobalMilestonePopup';
-import { Employee, FontFamilyId, FontSizeScale } from './types';
+import { Employee, FontFamilyId, FontSizeScale, ThemeMode } from './types';
 import { DEFAULT_EMPLOYEES } from './data/defaultEmployees';
 import { FONT_OPTIONS, FONT_SIZE_SCALES } from './data/fontOptions';
 import {
@@ -27,7 +27,9 @@ import {
   CheckCircle2,
   Palette,
   Minimize2,
-  Maximize2
+  Maximize2,
+  Moon,
+  Sun
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY_EMPLOYEES = 'likemonitor_employees_v1';
@@ -35,6 +37,7 @@ const LOCAL_STORAGE_KEY_STORE = 'likemonitor_store_code_v1';
 const LOCAL_STORAGE_KEY_FONT = 'likemonitor_font_family_v1';
 const LOCAL_STORAGE_KEY_SIZE = 'likemonitor_font_size_v1';
 const LOCAL_STORAGE_KEY_COMPACT = 'likemonitor_compact_mode_v1';
+const LOCAL_STORAGE_KEY_THEME = 'likemonitor_theme_mode_v1';
 
 const TAB_ORDER: ActiveTab[] = ['rekap', 'desain', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
 
@@ -144,6 +147,23 @@ export default function App() {
     }
   });
 
+  // Dark Mode Theme State with local storage persistence
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY_THEME);
+      if (saved === 'dark' || saved === 'light') {
+        return saved;
+      }
+    } catch {
+      // Fallback
+    }
+    return 'light';
+  });
+
+  const toggleTheme = () => {
+    setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // Employee State with local storage persistence
   const [employees, setEmployees] = useState<Employee[]>(() => {
     try {
@@ -218,6 +238,20 @@ export default function App() {
       // Ignore
     }
   }, [compactMode]);
+
+  // Apply dark mode class to html element and save to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY_THEME, themeMode);
+      if (themeMode === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch {
+      // Ignore
+    }
+  }, [themeMode]);
 
   // Helper navigations with smooth swipe direction
   const handleOpenConsoleGuide = () => {
@@ -332,6 +366,8 @@ export default function App() {
         onOpenFontModal={() => setIsFontModalOpen(true)}
         compactMode={compactMode}
         onToggleCompactMode={() => setCompactMode((prev) => !prev)}
+        themeMode={themeMode}
+        onToggleTheme={toggleTheme}
       />
 
       {/* ========================================================= */}
@@ -385,8 +421,43 @@ export default function App() {
             </AnimatePresence>
           </div>
 
-          {/* Right Header Badges: Mode Ringkas Switch + Milestone Alert + Font + Connection */}
+          {/* Right Header Badges: Dark Mode + Mode Ringkas + Milestone Alert + Font + Connection */}
           <div className="flex items-center gap-2.5 shrink-0">
+            {/* Dark Mode / Default Light Mode Switch Button */}
+            <button
+              id="btn-header-theme-toggle"
+              type="button"
+              onClick={toggleTheme}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer shadow-2xs ${
+                themeMode === 'dark'
+                  ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700 ring-2 ring-amber-400/30'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 hover:border-indigo-400'
+              }`}
+              title={
+                themeMode === 'dark'
+                  ? 'Tema Gelap AKTIF: Klik untuk kembali ke Tema Default (Terang)'
+                  : 'Aktifkan Tema Dark Mode (Gelap) agar nyaman di mata dan tidak pusing'
+              }
+            >
+              {themeMode === 'dark' ? (
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-indigo-600" />
+              )}
+              <span className={themeMode === 'dark' ? 'text-amber-200 font-medium' : 'text-slate-600 font-medium'}>
+                Tema:
+              </span>
+              <span
+                className={`px-1.5 py-0.2 rounded text-[10px] font-black uppercase tracking-wider ${
+                  themeMode === 'dark'
+                    ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {themeMode === 'dark' ? 'GELAP' : 'DEFAULT'}
+              </span>
+            </button>
+
             {/* Mode Ringkas Toggle Switch Button */}
             <button
               id="btn-header-compact-mode"
@@ -582,8 +653,35 @@ export default function App() {
           storeName={storeCode ? `MEGA ${storeCode}` : 'MEGA KTSN'}
         />
 
-        {/* Floating Quick Font Picker Widget (Bottom Right) */}
+        {/* Floating Quick Action Widgets (Bottom Right: Theme Switcher & Font Picker) */}
         <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2">
+          {/* Quick Floating Theme Switcher */}
+          <button
+            id="floating-btn-theme-toggle"
+            type="button"
+            onClick={toggleTheme}
+            className={`px-3.5 py-2 rounded-full shadow-lg border flex items-center gap-2 text-xs font-bold transition-all hover:scale-105 cursor-pointer backdrop-blur-md ${
+              themeMode === 'dark'
+                ? 'bg-slate-900/95 hover:bg-black text-amber-300 border-slate-700 shadow-amber-950/30 ring-1 ring-amber-400/30'
+                : 'bg-white/95 hover:bg-slate-100 text-slate-800 border-slate-300 shadow-slate-900/10'
+            }`}
+            title={
+              themeMode === 'dark'
+                ? 'Tema Gelap AKTIF (Klik untuk kembali ke Tema Default Terang)'
+                : 'Ubah ke Tema Dark Mode (Gelap)'
+            }
+          >
+            {themeMode === 'dark' ? (
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+            ) : (
+              <Moon className="w-3.5 h-3.5 text-indigo-600" />
+            )}
+            <span className="hidden sm:inline">
+              {themeMode === 'dark' ? 'Tema: Dark' : 'Tema: Default'}
+            </span>
+          </button>
+
+          {/* Floating Quick Font Picker Widget */}
           <button
             onClick={() => setIsFontModalOpen(true)}
             className="px-3.5 py-2 bg-slate-900/90 hover:bg-slate-950 text-white rounded-full shadow-lg border border-slate-700 flex items-center gap-2 text-xs font-bold transition-all hover:scale-105 cursor-pointer backdrop-blur-md"

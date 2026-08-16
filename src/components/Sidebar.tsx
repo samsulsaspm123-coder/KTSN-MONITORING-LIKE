@@ -24,8 +24,11 @@ import {
   ShieldCheck,
   Palette,
   Minimize2,
-  Maximize2
+  Maximize2,
+  Moon,
+  Sun
 } from 'lucide-react';
+import { ThemeMode } from '../types';
 
 export type ActiveTab = 'rekap' | 'desain' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
 
@@ -38,6 +41,8 @@ interface SidebarProps {
   onOpenFontModal?: () => void;
   compactMode?: boolean;
   onToggleCompactMode?: () => void;
+  themeMode?: ThemeMode;
+  onToggleTheme?: () => void;
 }
 
 export function Sidebar({
@@ -49,6 +54,8 @@ export function Sidebar({
   onOpenFontModal,
   compactMode = false,
   onToggleCompactMode,
+  themeMode = 'light',
+  onToggleTheme,
 }: SidebarProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -227,6 +234,21 @@ export function Sidebar({
 
         {/* Quick Mobile Action Buttons */}
         <div className="flex items-center gap-1.5">
+          {onToggleTheme && (
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                themeMode === 'dark'
+                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+              }`}
+              title={themeMode === 'dark' ? 'Kembali ke Tema Default (Terang)' : 'Ubah ke Tema Dark Mode'}
+            >
+              {themeMode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setActiveTab('sosmed')}
@@ -456,8 +478,50 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* SIDEBAR FOOTER: FONT SWITCHER & GOOGLE SHEETS CONNECTION */}
+        {/* SIDEBAR FOOTER: THEME TOGGLE, FONT SWITCHER & GOOGLE SHEETS CONNECTION */}
         <div className="p-3.5 border-t border-slate-200/80 bg-slate-50/80 space-y-2 shrink-0">
+          {/* Dark Mode / Default Light Mode Switcher Button */}
+          {onToggleTheme && (
+            <button
+              id="sidebar-btn-theme-toggle"
+              type="button"
+              onClick={onToggleTheme}
+              className={`w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between border transition-all cursor-pointer shadow-2xs ${
+                themeMode === 'dark'
+                  ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700 shadow-amber-950/20'
+                  : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200 hover:border-indigo-300'
+              }`}
+              title={
+                themeMode === 'dark'
+                  ? 'Tema Gelap AKTIF: Klik untuk kembali ke Tema Default (Terang)'
+                  : 'Aktifkan Tema Dark Mode (Gelap) agar nyaman di mata dan tidak pusing'
+              }
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                {themeMode === 'dark' ? (
+                  <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+                ) : (
+                  <Moon className="w-4 h-4 text-indigo-600 shrink-0" />
+                )}
+                <span className={themeMode === 'dark' ? 'text-slate-200' : 'text-slate-600 font-medium'}>
+                  Tema:
+                </span>
+                <span className="font-black truncate">
+                  {themeMode === 'dark' ? 'Dark Mode' : 'Default (Terang)'}
+                </span>
+              </div>
+              <span
+                className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                  themeMode === 'dark'
+                    ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
+                    : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                }`}
+              >
+                {themeMode === 'dark' ? 'Gelap' : 'Terang'}
+              </span>
+            </button>
+          )}
+
           {/* Font Picker Trigger Button */}
           {onOpenFontModal && (
             <button

@@ -101,6 +101,149 @@ export function formatDateIndo(date: Date = new Date()): string {
 }
 
 /**
+ * Gets branch priority rank:
+ * 1: NGK (Nganjuk)
+ * 2: WRJ / WR (Warujayeng)
+ * 3: KTSN / KTS (Kertosono)
+ * 50: Other retail branches
+ * 90: EXTERNAL / EKSTERNAL
+ * 95: UMUM / PUSAT / HO / LAINNYA
+ */
+export function getBranchRank(divisionName: string): number {
+  const d = (divisionName || '').toUpperCase().trim();
+  
+  // 1. NGK / Nganjuk
+  if (d.includes('NGK') || d.includes('NGANJUK')) {
+    return 1;
+  }
+  
+  // 2. WRJ / Warujayeng / WR
+  if (d.includes('WRJ') || d.includes('WARU') || /\bWR\b/.test(d) || d.endsWith(' WR') || d.includes(' WR ')) {
+    return 2;
+  }
+  
+  // 3. KTSN / Kertosono / KTS
+  if (d.includes('KTSN') || d.includes('KERTOSONO') || /\bKTS\b/.test(d) || d.endsWith(' KTS') || d.includes(' KTS ')) {
+    return 3;
+  }
+
+  // 4. External / Eksternal
+  if (d.includes('EXTERNAL') || d.includes('EKSTERNAL')) {
+    return 90;
+  }
+
+  // 5. Umum / Kantor Pusat / HO
+  if (d.includes('UMUM') || d.includes('HO') || d.includes('PUSAT') || d.includes('MANAGEMENT')) {
+    return 95;
+  }
+
+  return 50;
+}
+
+/**
+ * Gets role/sub-category priority rank within branch:
+ * 1: ADMIN, KASIR, OFFICE, KANTOR, ADM
+ * 2: MS, FL, PROMOTOR, SALES, SPG, SPM
+ * 3: G1 ELEKT / GRUP 1
+ * 4: G2 ELEKT / GRUP 2
+ * 5: G3 ELEKT / GRUP 3
+ * 6: G4 ELEKT / GRUP 4
+ * 7: G5 ELEKT / GRUP 5
+ * 8: G6 ELEKT / GRUP 6
+ * 10: ELEKT / ELEKTRONIK / ELECTRONIC (General)
+ * 15: FURNITURE / MEBEL / MATRASS / SPRINGBED
+ * 20: LOGISTIK / GUDANG / DRIVER / HELPER / PENGIRIMAN
+ * 30: Others
+ */
+export function getRoleRank(divisionName: string): number {
+  const d = (divisionName || '').toUpperCase().trim();
+
+  // Admin & Management
+  if (
+    d.includes('ADMIN') ||
+    d.includes('ADM') ||
+    d.includes('KANTOR') ||
+    d.includes('OFFICE') ||
+    d.includes('HRD') ||
+    d.includes('FINANCE') ||
+    d.includes('KEUANGAN')
+  ) {
+    return 1;
+  }
+
+  // MS, FL, Promotor, Sales
+  if (
+    d.includes('MS') ||
+    d.includes('FL') ||
+    d.includes('PROMOTOR') ||
+    d.includes('PROMOTER') ||
+    d.includes('SPG') ||
+    d.includes('SPM') ||
+    d.includes('SALES')
+  ) {
+    return 2;
+  }
+
+  // G1 .. G6 Group Electronics
+  if (/\bG1\b/.test(d) || d.includes('G 1') || d.includes('GRUP 1') || d.includes('GROUP 1')) return 3;
+  if (/\bG2\b/.test(d) || d.includes('G 2') || d.includes('GRUP 2') || d.includes('GROUP 2')) return 4;
+  if (/\bG3\b/.test(d) || d.includes('G 3') || d.includes('GRUP 3') || d.includes('GROUP 3')) return 5;
+  if (/\bG4\b/.test(d) || d.includes('G 4') || d.includes('GRUP 4') || d.includes('GROUP 4')) return 6;
+  if (/\bG5\b/.test(d) || d.includes('G 5') || d.includes('GRUP 5') || d.includes('GROUP 5')) return 7;
+  if (/\bG6\b/.test(d) || d.includes('G 6') || d.includes('GRUP 6') || d.includes('GROUP 6')) return 8;
+
+  // General Elektronik
+  if (d.includes('ELEKT') || d.includes('ELECTRONIC') || d.includes('ELEKTRONIK')) {
+    return 10;
+  }
+
+  // Furniture / Mebel
+  if (d.includes('FURNITURE') || d.includes('MEBEL') || d.includes('MATRASS') || d.includes('SPRINGBED')) {
+    return 15;
+  }
+
+  // Logistik / Pengiriman
+  if (
+    d.includes('LOGISTIK') ||
+    d.includes('GUDANG') ||
+    d.includes('DRIVER') ||
+    d.includes('HELPER') ||
+    d.includes('PENGIRIMAN') ||
+    d.includes('EKSPEDISI')
+  ) {
+    return 20;
+  }
+
+  if (d.includes('KASIR')) {
+    return 25;
+  }
+
+  return 30;
+}
+
+/**
+ * Comparator to sort division names:
+ * 1. Branch priority: NGK (1) -> WRJ (2) -> KTSN (3) -> Other branches (50) -> EXTERNAL (90) -> UMUM (95)
+ * 2. Role priority: ADMIN (1) -> MS/FL/PROMOTOR (2) -> G1 (3) -> G2 (4) -> G3 (5) -> G4 (6) -> ELEKT (10) -> ...
+ * 3. Alphabetical tie-breaker
+ */
+export function compareDivisions(a: string, b: string): number {
+  const branchA = getBranchRank(a);
+  const branchB = getBranchRank(b);
+  if (branchA !== branchB) {
+    return branchA - branchB;
+  }
+
+  const roleA = getRoleRank(a);
+  const roleB = getRoleRank(b);
+  if (roleA !== roleB) {
+    return roleA - roleB;
+  }
+
+  return a.localeCompare(b);
+}
+
+/**
  * Main processing engine:
  * Compares likers against employees, applies status exemption rules,
  * groups penalized employees by Division, and produces the WhatsApp text.
@@ -164,8 +307,8 @@ export function processLikersData({
 
   const divisionSummaries: DivisionSummary[] = [];
 
-  // Sort divisions alphabetically or keep standard retail order
-  const divisionKeys = Array.from(divisionMap.keys()).sort((a, b) => a.localeCompare(b));
+  // Sort divisions with branch priority (NGK -> WRJ -> KTSN -> Others) & role hierarchy (ADMIN -> MS/FL -> G1 -> G2 -> ...)
+  const divisionKeys = Array.from(divisionMap.keys()).sort(compareDivisions);
 
   for (const div of divisionKeys) {
     const items = divisionMap.get(div)!;

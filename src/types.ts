@@ -71,6 +71,8 @@ export type FontFamilyId =
 
 export type FontSizeScale = 'compact' | 'normal' | 'comfortable' | 'large';
 
+export type ThemeMode = 'light' | 'dark';
+
 export interface FontOption {
   id: FontFamilyId;
   name: string;

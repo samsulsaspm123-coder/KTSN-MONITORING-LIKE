@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Employee, EmployeeStatus } from '../types';
 import { DEFAULT_EMPLOYEES } from '../data/defaultEmployees';
+import { compareDivisions } from '../utils/likersParser';
 
 interface EmployeeManagerProps {
   employees: Employee[];
@@ -261,11 +262,11 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
     };
   }, [employees]);
 
-  // Divisions list
+  // Divisions list (sorted with branch priority: NGK -> WRJ -> KTSN)
   const divisionList = useMemo(() => {
     const set = new Set<string>();
     employees.forEach((e) => set.add(e.divisi));
-    return Array.from(set).sort();
+    return Array.from(set).sort(compareDivisions);
   }, [employees]);
 
   // Filtered employees including Quota Filter
