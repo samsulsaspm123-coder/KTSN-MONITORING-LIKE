@@ -60,27 +60,6 @@ export function Sidebar({
   onToggleTheme,
 }: SidebarProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  // Live timer for sidebar milestone clock
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const hours = currentTime.getHours();
-  const minutes = currentTime.getMinutes();
-  const seconds = currentTime.getSeconds();
-  const totalMinutesNow = hours * 60 + minutes + seconds / 60;
-
-  // Key Milestones
-  const M_15_40 = 15 * 60 + 40; // 940 min (Laporan Web App Harus Lengkap)
-  const M_16_15 = 16 * 60 + 15; // 975 min (DEADLINE Masuk Grup WA)
-
-  const isWebReportReminderActive = totalMinutesNow >= M_15_40 && totalMinutesNow < M_16_15;
-  const isDeadlinePassed = totalMinutesNow >= M_16_15;
 
   const storeInitial = storeCode ? storeCode.charAt(0).toUpperCase() : 'K';
 
@@ -197,10 +176,6 @@ export function Sidebar({
     setIsMobileOpen(false);
   };
 
-  const timeFormatted = `${hours.toString().padStart(2, '0')}:${minutes
-    .toString()
-    .padStart(2, '0')}:${seconds.toString().padStart(2, '0')} WIB`;
-
   return (
     <>
       {/* ========================================================= */}
@@ -287,15 +262,15 @@ export function Sidebar({
       </AnimatePresence>
 
       {/* ========================================================= */}
-      {/* LEFT SIDEBAR CONTAINER (Desktop: Sticky, Mobile: Drawer)  */}
+      {/* LEFT SIDEBAR CONTAINER (Desktop: Sticky Fixed, Mobile: Drawer) */}
       {/* ========================================================= */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-white border-r border-slate-200/90 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:z-30 shrink-0 shadow-sm ${
+        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-white border-r border-slate-200/90 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:max-h-screen lg:z-30 shrink-0 shadow-sm overflow-hidden ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* SIDEBAR HEADER: BRAND, STORE LOGO & LIVE BADGE */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-b from-slate-50/80 to-white shrink-0">
+        {/* SIDEBAR HEADER (ALWAYS FIXED AT TOP) */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-b from-slate-50/90 to-white shrink-0 z-10">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3">
               <AppLogo size="md" />
@@ -329,8 +304,8 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* SIDEBAR NAVIGATION ITEMS LIST (Scrollable if needed) */}
-        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-1.5 custom-scrollbar">
+        {/* SIDEBAR NAVIGATION ITEMS LIST (SCROLLABLE MIDDLE BODY ONLY) */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3 space-y-1.5 custom-scrollbar">
           <div className="px-2 pb-1.5 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
               Menu Utama & Laporan
@@ -409,139 +384,80 @@ export function Sidebar({
               </motion.button>
             );
           })}
-
-          {/* ========================================================= */}
-          {/* SIDEBAR MILESTONE REMINDER WIDGET (15:40 & 16:15)         */}
-          {/* ========================================================= */}
-          <div className="pt-3">
-            <motion.div
-              onClick={() => handleSelectTab('sosmed')}
-              whileHover={{ scale: 1.015, y: -1 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.16 }}
-              className={`p-3.5 rounded-2xl border transition-all cursor-pointer shadow-xs group ${
-                isDeadlinePassed
-                  ? 'bg-rose-50 border-rose-200 text-rose-950 hover:bg-rose-100/90'
-                  : isWebReportReminderActive
-                  ? 'bg-amber-50 border-amber-300 text-amber-950 hover:bg-amber-100/90'
-                  : 'bg-gradient-to-br from-indigo-50/80 via-purple-50/50 to-pink-50/80 border-indigo-100 text-slate-900 hover:border-indigo-200'
-              }`}
-              title="Klik untuk membuka Laporan Posting Sosmed Harian"
-            >
-              <div className="flex items-center justify-between gap-1 mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Clock
-                    className={`w-3.5 h-3.5 ${
-                      isDeadlinePassed
-                        ? 'text-rose-600 animate-bounce'
-                        : isWebReportReminderActive
-                        ? 'text-amber-600 animate-pulse'
-                        : 'text-indigo-600'
-                    }`}
-                  />
-                  <span className="text-[11px] font-black uppercase tracking-wider">
-                    Jadwal Milestone
-                  </span>
-                </div>
-                <span className="font-mono text-[10px] font-bold text-slate-500 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200/80">
-                  {timeFormatted}
-                </span>
-              </div>
-
-              <div className="space-y-1 text-[11px] font-medium text-slate-700">
-                <div className="flex items-center justify-between bg-white/70 px-2 py-1 rounded-lg border border-slate-200/60">
-                  <span className="font-bold text-amber-900">⏰ 15:40 WIB</span>
-                  <span className="text-[10px] font-semibold text-slate-500">Laporan Web Lengkap</span>
-                </div>
-                <div className="flex items-center justify-between bg-white/70 px-2 py-1 rounded-lg border border-slate-200/60">
-                  <span className="font-bold text-rose-900">🚨 16:15 WIB</span>
-                  <span className="text-[10px] font-semibold text-slate-500">Deadline Grup WA</span>
-                </div>
-              </div>
-
-              <div className="mt-2.5 flex items-center justify-between text-[10px] font-bold text-indigo-700 group-hover:text-indigo-900">
-                <span>Buka Rekap 7 Post &rarr;</span>
-                <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-900 text-[9px] font-black">
-                  Format WA
-                </span>
-              </div>
-            </motion.div>
-          </div>
         </div>
 
-        {/* SIDEBAR FOOTER: THEME TOGGLE, FONT SWITCHER & GOOGLE SHEETS CONNECTION */}
-        <div className="p-3.5 border-t border-slate-200/80 bg-slate-50/80 space-y-2 shrink-0">
-          {/* Dark Mode / Default Light Mode Switcher Button */}
-          {onToggleTheme && (
-            <button
-              id="sidebar-btn-theme-toggle"
-              type="button"
-              onClick={onToggleTheme}
-              className={`w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between border transition-all cursor-pointer shadow-2xs ${
-                themeMode === 'dark'
-                  ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700 shadow-amber-950/20'
-                  : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200 hover:border-indigo-300'
-              }`}
-              title={
-                themeMode === 'dark'
-                  ? 'Tema Gelap AKTIF: Klik untuk kembali ke Tema Default (Terang)'
-                  : 'Aktifkan Tema Dark Mode (Gelap) agar nyaman di mata dan tidak pusing'
-              }
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                {themeMode === 'dark' ? (
-                  <Sun className="w-4 h-4 text-amber-400 shrink-0" />
-                ) : (
-                  <Moon className="w-4 h-4 text-indigo-600 shrink-0" />
-                )}
-                <span className={themeMode === 'dark' ? 'text-slate-200' : 'text-slate-600 font-medium'}>
-                  Tema:
-                </span>
-                <span className="font-black truncate">
-                  {themeMode === 'dark' ? 'Dark Mode' : 'Default (Terang)'}
-                </span>
-              </div>
-              <span
-                className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
+        {/* SIDEBAR FOOTER: UNIFIED CONTROLS (ALWAYS FIXED AT BOTTOM) */}
+        <div className="p-3 border-t border-slate-200/90 bg-slate-50/90 dark:bg-slate-900/90 space-y-2 shrink-0 z-10 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+          {/* Dual Quick Controls: Theme Mode & Font Selector */}
+          <div className="grid grid-cols-2 gap-1.5">
+            {/* Dark / Light Theme Toggle */}
+            {onToggleTheme && (
+              <button
+                id="sidebar-btn-theme-toggle"
+                type="button"
+                onClick={onToggleTheme}
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center justify-between border transition-all cursor-pointer shadow-2xs ${
                   themeMode === 'dark'
-                    ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
-                    : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700 shadow-amber-950/20'
+                    : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200 hover:border-indigo-300'
                 }`}
+                title={
+                  themeMode === 'dark'
+                    ? 'Tema Gelap AKTIF: Klik untuk beralih ke Terang'
+                    : 'Aktifkan Tema Dark Mode (Gelap)'
+                }
               >
-                {themeMode === 'dark' ? 'Gelap' : 'Terang'}
-              </span>
-            </button>
-          )}
-
-          {/* Font Picker Trigger Button */}
-          {onOpenFontModal && (
-            <button
-              id="sidebar-btn-font-picker"
-              type="button"
-              onClick={onOpenFontModal}
-              className="w-full px-3 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 flex items-center justify-between border border-slate-200 transition-all cursor-pointer shadow-2xs hover:border-indigo-300"
-              title="Ubah jenis & ukuran font tampilan"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <Type className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span className="text-slate-600 font-medium">Font:</span>
-                <span className="text-indigo-950 font-black truncate max-w-[100px]">
-                  {currentFontName}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {themeMode === 'dark' ? (
+                    <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  ) : (
+                    <Moon className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  )}
+                  <span className="truncate">
+                    {themeMode === 'dark' ? 'Dark' : 'Terang'}
+                  </span>
+                </div>
+                <span
+                  className={`text-[9px] font-black px-1.5 py-0.2 rounded uppercase ${
+                    themeMode === 'dark'
+                      ? 'bg-amber-400/20 text-amber-300'
+                      : 'bg-indigo-50 text-indigo-700'
+                  }`}
+                >
+                  {themeMode === 'dark' ? 'ON' : 'OFF'}
                 </span>
-              </div>
-              <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-1.5 py-0.5 rounded border border-indigo-100 shrink-0">
-                Ubah
-              </span>
-            </button>
-          )}
+              </button>
+            )}
+
+            {/* Font Picker Trigger Button */}
+            {onOpenFontModal && (
+              <button
+                id="sidebar-btn-font-picker"
+                type="button"
+                onClick={onOpenFontModal}
+                className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-800 flex items-center justify-between border border-slate-200 transition-all cursor-pointer shadow-2xs hover:border-indigo-300"
+                title="Ubah jenis & ukuran font tampilan"
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Type className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span className="text-slate-800 font-bold truncate max-w-[55px]">
+                    {currentFontName}
+                  </span>
+                </div>
+                <span className="text-[9px] bg-indigo-50 text-indigo-700 font-bold px-1 py-0.2 rounded border border-indigo-100 shrink-0">
+                  Font
+                </span>
+              </button>
+            )}
+          </div>
 
           {/* Google Sheets Connection Indicator */}
-          <div className="flex items-center justify-between px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-[11px] font-bold shadow-2xs">
+          <div className="flex items-center justify-between px-2.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-[11px] font-bold shadow-2xs">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0" />
               <span>Google Sheets</span>
             </div>
-            <span className="text-[9px] bg-emerald-200 text-emerald-950 px-1.5 py-0.5 rounded font-black uppercase">
+            <span className="text-[9px] bg-emerald-200 text-emerald-950 px-1.5 py-0.2 rounded font-black uppercase">
               Connected
             </span>
           </div>

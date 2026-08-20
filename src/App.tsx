@@ -29,7 +29,8 @@ import {
   Minimize2,
   Maximize2,
   Moon,
-  Sun
+  Sun,
+  Calendar
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY_EMPLOYEES = 'likemonitor_employees_v1';
@@ -162,6 +163,36 @@ export default function App() {
 
   const toggleTheme = () => {
     setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  // Realtime Live Clock State for Top Header
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatIndonesianDate = (date: Date) => {
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const dayName = days[date.getDay()];
+    const dayNum = date.getDate();
+    const monthName = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${dayName}, ${dayNum} ${monthName} ${year}`;
+  };
+
+  const formatIndonesianTime = (date: Date) => {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+    return `${hours}:${minutes}:${seconds} WIB`;
   };
 
   // Employee State with local storage persistence
@@ -421,42 +452,28 @@ export default function App() {
             </AnimatePresence>
           </div>
 
-          {/* Right Header Badges: Dark Mode + Mode Ringkas + Milestone Alert + Font + Connection */}
+          {/* Right Header: Realtime Clock/Date + Mode Ringkas + Connected Status */}
           <div className="flex items-center gap-2.5 shrink-0">
-            {/* Dark Mode / Default Light Mode Switch Button */}
-            <button
-              id="btn-header-theme-toggle"
-              type="button"
-              onClick={toggleTheme}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer shadow-2xs ${
-                themeMode === 'dark'
-                  ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700 ring-2 ring-amber-400/30'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 hover:border-indigo-400'
-              }`}
-              title={
-                themeMode === 'dark'
-                  ? 'Tema Gelap AKTIF: Klik untuk kembali ke Tema Default (Terang)'
-                  : 'Aktifkan Tema Dark Mode (Gelap) agar nyaman di mata dan tidak pusing'
-              }
+            {/* Realtime Live Day, Date & Clock Widget */}
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs shadow-2xs transition-colors"
+              title="Waktu dan Tanggal Sistem Saat Ini"
             >
-              {themeMode === 'dark' ? (
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-              ) : (
-                <Moon className="w-3.5 h-3.5 text-indigo-600" />
-              )}
-              <span className={themeMode === 'dark' ? 'text-amber-200 font-medium' : 'text-slate-600 font-medium'}>
-                Tema:
-              </span>
-              <span
-                className={`px-1.5 py-0.2 rounded text-[10px] font-black uppercase tracking-wider ${
-                  themeMode === 'dark'
-                    ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
-                    : 'bg-slate-200 text-slate-700'
-                }`}
-              >
-                {themeMode === 'dark' ? 'GELAP' : 'DEFAULT'}
-              </span>
-            </button>
+              {/* Full Day and Date in Indonesian */}
+              <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-bold">
+                <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>{formatIndonesianDate(currentTime)}</span>
+              </div>
+
+              {/* Subtle Divider */}
+              <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
+
+              {/* Live Ticking Time */}
+              <div className="flex items-center gap-1.5 font-mono font-black text-indigo-700 dark:text-indigo-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800 shadow-2xs">
+                <Clock className="w-3 h-3 text-emerald-500 animate-pulse shrink-0" />
+                <span>{formatIndonesianTime(currentTime)}</span>
+              </div>
+            </div>
 
             {/* Mode Ringkas Toggle Switch Button */}
             <button
@@ -466,7 +483,7 @@ export default function App() {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer shadow-2xs ${
                 compactMode
                   ? 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700 ring-2 ring-indigo-300/50 shadow-indigo-600/20'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 hover:border-indigo-400'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 hover:border-indigo-400 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700'
               }`}
               title={
                 compactMode
@@ -477,62 +494,24 @@ export default function App() {
               {compactMode ? (
                 <Minimize2 className="w-3.5 h-3.5 text-white" />
               ) : (
-                <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
+                <Maximize2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               )}
-              <span className={compactMode ? 'text-white' : 'text-slate-600 font-medium'}>
+              <span className={compactMode ? 'text-white' : 'text-slate-600 dark:text-slate-300 font-medium'}>
                 Mode Ringkas:
               </span>
               <span
                 className={`px-1.5 py-0.2 rounded text-[10px] font-black uppercase tracking-wider ${
                   compactMode
                     ? 'bg-white text-indigo-900 shadow-2xs'
-                    : 'bg-slate-200 text-slate-700'
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
                 }`}
               >
                 {compactMode ? 'ON' : 'OFF'}
               </span>
             </button>
 
-            {/* Keyboard Shortcuts Hint Pill */}
-            <div
-              className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100/90 text-slate-600 border border-slate-200 text-xs font-semibold shadow-2xs"
-              title="Shortcut Keyboard: Tekan Ctrl+1 sampai Ctrl+7 (atau Alt+1..7) untuk beralih menu secara instan"
-            >
-              <span className="text-[11px]">⚡</span>
-              <span className="text-slate-500 font-medium text-[11px]">Tab:</span>
-              <kbd className="px-1.5 py-0.5 rounded bg-white text-indigo-900 border border-slate-200 font-mono text-[10px] font-bold shadow-2xs">
-                Ctrl + 1..7
-              </kbd>
-            </div>
-
-            {/* Quick 15:40 & 16:15 Milestone Reminder Pill */}
-            <button
-              type="button"
-              onClick={() => handleTabChange('sosmed')}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-100 to-orange-100 text-amber-950 border border-amber-300 text-xs font-black hover:from-amber-200 hover:to-orange-200 transition-all cursor-pointer shadow-2xs"
-              title="Laporan Web App 15:40 • Deadline Masuk Grup WA 16:15"
-            >
-              <span className="w-2 h-2 rounded-full bg-amber-600 animate-ping shrink-0" />
-              <span>⏰ 15:40 Web | 16:15 WA</span>
-            </button>
-
-            {/* Font Picker Button */}
-            <button
-              id="btn-font-topbar"
-              type="button"
-              onClick={() => setIsFontModalOpen(true)}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center gap-1.5 border border-slate-300 transition-all cursor-pointer shadow-2xs hover:border-indigo-400"
-              title="Ubah jenis & ukuran font tampilan"
-            >
-              <Type className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="text-slate-500 font-medium">Font:</span>
-              <span className="text-indigo-950 font-black truncate max-w-[100px]">
-                {currentFontObj.name}
-              </span>
-            </button>
-
             {/* Google Sheets Connection Pill */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold shadow-2xs">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-bold shadow-2xs">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0" />
               <span>Connected</span>
             </div>
