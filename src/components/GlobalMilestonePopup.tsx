@@ -41,15 +41,16 @@ export function GlobalMilestonePopup({
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
   const [isDismissedForSession, setIsDismissedForSession] = useState<boolean>(false);
 
-  // Live timer tick every second
+  // Live timer tick (10s in background to save battery & RAM, 1s when test mode)
   useEffect(() => {
+    const intervalMs = timeMode === 'live' ? 5000 : 1000;
     const timer = setInterval(() => {
       if (timeMode === 'live') {
         setSimulatedDate(new Date());
       } else {
         setSimulatedDate((prev) => new Date(prev.getTime() + 1000));
       }
-    }, 1000);
+    }, intervalMs);
 
     return () => clearInterval(timer);
   }, [timeMode]);

@@ -369,12 +369,14 @@ export function processLikersData({
   const totalDenda = allResults.filter(r => r.isPenalized).length;
   const totalExempt = allResults.filter(r => r.isExempt).length;
 
-  let unrecognizedLikersCount = 0;
+  const unrecognizedLikers: string[] = [];
   for (const liker of likerSet) {
     if (!recognizedEmployeeLikers.has(liker)) {
-      unrecognizedLikersCount++;
+      unrecognizedLikers.push(liker);
     }
   }
+  unrecognizedLikers.sort((a, b) => a.localeCompare(b));
+  const unrecognizedLikersCount = unrecognizedLikers.length;
 
   return {
     tanggalStr: dateStr,
@@ -391,6 +393,7 @@ export function processLikersData({
     allResults,
     waTextOutput,
     unrecognizedLikersCount,
+    unrecognizedLikers,
   };
 }
 

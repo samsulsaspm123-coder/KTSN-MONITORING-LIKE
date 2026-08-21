@@ -65,17 +65,17 @@ export function LocalStorageGauge() {
   useEffect(() => {
     calculateStorage();
 
-    // Listen to storage events and auto recalculate
+    // Listen to storage events and window focus to recalculate without heavy timer loops
     const handleStorageChange = () => {
       calculateStorage();
     };
 
     window.addEventListener('storage', handleStorageChange);
-    const interval = setInterval(calculateStorage, 4000);
+    window.addEventListener('focus', handleStorageChange);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
+      window.removeEventListener('focus', handleStorageChange);
     };
   }, []);
 

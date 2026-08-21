@@ -73,7 +73,11 @@ export function RekapGenerator({
   // Breakdown Table Filter State
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDivFilter, setSelectedDivFilter] = useState<string>('ALL');
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'ALL' | 'DENDA' | 'LIKED' | 'EXEMPT'>('ALL');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'ALL' | 'DENDA' | 'LIKED' | 'ORANG_LUAR' | 'EXEMPT'>('ALL');
+  const [copiedExternalLikers, setCopiedExternalLikers] = useState<boolean>(false);
+  const [copiedSingleUser, setCopiedSingleUser] = useState<string | null>(null);
+  const [externalLikersViewMode, setExternalLikersViewMode] = useState<'top' | 'bottom' | 'table_only'>('top');
+  const [isExternalLikersExpanded, setIsExternalLikersExpanded] = useState<boolean>(true);
 
   // Real-time extracted usernames preview count
   const detectedUsernames = useMemo(() => {
@@ -260,9 +264,40 @@ export function RekapGenerator({
     setTimeout(() => setCopiedBookmarklet(false), 2000);
   };
 
+  // Copy all external likers list to clipboard
+  const handleCopyExternalLikers = (format: 'newline' | 'comma' = 'newline') => {
+    if (!result?.unrecognizedLikers?.length) return;
+    const text = format === 'newline'
+      ? result.unrecognizedLikers.map((u) => `@${u}`).join('\n')
+      : result.unrecognizedLikers.map((u) => `@${u}`).join(', ');
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedExternalLikers(true);
+      setTimeout(() => setCopiedExternalLikers(false), 2000);
+    });
+  };
+
+  // Copy single username
+  const handleCopySingleUser = (username: string) => {
+    navigator.clipboard.writeText(`@${username}`).then(() => {
+      setCopiedSingleUser(username);
+      setTimeout(() => setCopiedSingleUser(null), 1500);
+    });
+  };
+
+  // Filtered external likers (non-employee / not in database)
+  const filteredExternalLikers = useMemo(() => {
+    if (!result?.unrecognizedLikers) return [];
+    if (!searchQuery.trim()) return result.unrecognizedLikers;
+    const q = searchQuery.toLowerCase().replace(/^@+/, '');
+    return result.unrecognizedLikers.filter((u) => u.toLowerCase().includes(q));
+  }, [result, searchQuery]);
+
   // Filtered list for the detail breakdown table
   const filteredDetailResults = useMemo(() => {
     if (!result) return [];
+    // If user filtered specifically for ORANG_LUAR only, hide standard employee rows
+    if (selectedStatusFilter === 'ORANG_LUAR') return [];
+
     return result.allResults.filter((item) => {
       const matchesSearch =
         item.employee.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -826,9 +861,9 @@ export function RekapGenerator({
 
             {/* Metrics Chips */}
             {result && (
-              <div className="grid grid-cols-4 gap-2 bg-slate-800/80 p-2.5 rounded-lg border border-white/5 text-center">
+              <div className="grid grid-cols-5 gap-1.5 bg-slate-800/80 p-2.5 rounded-lg border border-white/5 text-center">
                 <div>
-                  <span className="text-[9px] text-slate-400 font-bold block uppercase">Total</span>
+                  <span className="text-[9px] text-slate-400 font-bold block uppercase">Karyawan</span>
                   <span className="text-sm font-bold text-white">{result.totalKaryawan}</span>
                 </div>
                 <div>
@@ -844,6 +879,12 @@ export function RekapGenerator({
                 <div>
                   <span className="text-[9px] text-amber-400 font-bold block uppercase">Cuti</span>
                   <span className="text-sm font-bold text-amber-400">{result.totalExempt}</span>
+                </div>
+                <div className="border-l border-slate-700 pl-1">
+                  <span className="text-[9px] text-cyan-400 font-bold block uppercase" title="Orang luar / non-karyawan yang me-like postingan">Luar (IG)</span>
+                  <span className="text-sm font-bold text-cyan-300 font-mono">
+                    {result.unrecognizedLikers?.length || 0}
+                  </span>
                 </div>
               </div>
             )}
@@ -969,24 +1010,39 @@ export function RekapGenerator({
       </div>
 
       {/* ========================================================= */}
-      {/* DETAILED EMPLOYEE BREAKDOWN TABLE                         */}
+      {/* DETAILED EMPLOYEE BREAKDOWN TABLE & ORANG LUAR SECTION     */}
       {/* ========================================================= */}
       {result && (
         <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <span>Rincian Status Setiap Karyawan</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Rincian Status Setiap Karyawan &amp; Akun Luar
+                </h3>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
                   {filteredDetailResults.length} dari {result.allResults.length} Karyawan
                 </span>
-              </h3>
-              <p className="text-xs text-slate-500">
-                Pemeriksaan detail akun Instagram utama (Username 1) & cadangan (Username 2)
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'ORANG_LUAR' ? 'ALL' : 'ORANG_LUAR')}
+                  className={`text-xs font-bold px-2.5 py-0.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer border ${
+                    selectedStatusFilter === 'ORANG_LUAR'
+                      ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                      : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                  }`}
+                  title="Klik untuk memfilter khusus akun orang luar"
+                >
+                  <Globe className="w-3 h-3 text-amber-700" />
+                  <span>{result.unrecognizedLikers?.length || 0} Orang Luar (Non-DB)</span>
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Pemeriksaan detail akun Instagram karyawan terdaftar dan tracking akun publik/orang luar yang me-like postingan
               </p>
             </div>
 
-            {/* Filters */}
+            {/* Filters & Position Toggle */}
             <div className="flex flex-wrap items-center gap-2">
               {/* Search */}
               <div className="relative">
@@ -996,7 +1052,7 @@ export function RekapGenerator({
                   placeholder="Cari nama / username..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800 w-40 sm:w-48"
+                  className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800 w-36 sm:w-44"
                 />
               </div>
 
@@ -1020,13 +1076,136 @@ export function RekapGenerator({
                 onChange={(e) => setSelectedStatusFilter(e.target.value as any)}
                 className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-slate-700 font-medium cursor-pointer"
               >
-                <option value="ALL">Semua Status</option>
+                <option value="ALL">Semua Status (Karyawan + Luar)</option>
                 <option value="DENDA">❌ Kena Denda ({result.totalDenda})</option>
                 <option value="LIKED">✅ Sudah Like ({result.totalSudahLike})</option>
+                <option value="ORANG_LUAR">🌐 Orang Luar / Non-DB ({result.unrecognizedLikers?.length || 0})</option>
                 <option value="EXEMPT">🏖️ Cuti / Off ({result.totalExempt})</option>
               </select>
+
+              {/* Position Switcher for Orang Luar */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setExternalLikersViewMode('top')}
+                  className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                    externalLikersViewMode === 'top' ? 'bg-white text-indigo-600 shadow-xs' : 'hover:text-slate-900'
+                  }`}
+                  title="Tampilkan panel orang luar di paling atas"
+                >
+                  Posisi: Atas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExternalLikersViewMode('bottom')}
+                  className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                    externalLikersViewMode === 'bottom' ? 'bg-white text-indigo-600 shadow-xs' : 'hover:text-slate-900'
+                  }`}
+                  title="Tampilkan panel orang luar di paling bawah"
+                >
+                  Bawah
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* DEDICATED ORANG LUAR / NON-DATABASE CARD (TOP POSITION) */}
+          {(externalLikersViewMode === 'top' || selectedStatusFilter === 'ORANG_LUAR') && (
+            <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-amber-200/70">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
+                        Daftar Akun Orang Luar (Non-Database)
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                        {filteredExternalLikers.length} dari {result.unrecognizedLikers?.length || 0} Akun
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Username yang me-like postingan ini tapi tidak terdaftar di database karyawan (audiens / follower organik).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyExternalLikers('newline')}
+                    disabled={!result.unrecognizedLikers?.length}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      copiedExternalLikers
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
+                    }`}
+                  >
+                    {copiedExternalLikers ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedExternalLikers ? 'Semua Tersalin!' : `Salin Semua (${result.unrecognizedLikers?.length || 0})`}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsExternalLikersExpanded(!isExternalLikersExpanded)}
+                    className="p-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-xs font-semibold cursor-pointer"
+                    title={isExternalLikersExpanded ? 'Sembunyikan chip' : 'Tampilkan chip'}
+                  >
+                    {isExternalLikersExpanded ? 'Tutup' : 'Buka'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Chips Grid */}
+              {isExternalLikersExpanded && (
+                <div>
+                  {filteredExternalLikers.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1 custom-scrollbar">
+                      {filteredExternalLikers.map((username) => (
+                        <div
+                          key={`chip-${username}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-amber-200 hover:border-amber-400 text-slate-800 text-xs shadow-2xs group transition-all"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          <span className="font-mono font-medium text-slate-800">@{username}</span>
+                          
+                          <button
+                            type="button"
+                            onClick={() => handleCopySingleUser(username)}
+                            className="text-slate-400 hover:text-indigo-600 p-0.5 rounded cursor-pointer transition-colors"
+                            title="Salin username"
+                          >
+                            {copiedSingleUser === username ? (
+                              <Check className="w-3 h-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+
+                          <a
+                            href={`https://www.instagram.com/${username}/`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-slate-400 hover:text-indigo-600 p-0.5 rounded transition-colors"
+                            title="Buka profil Instagram"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-800/80 italic py-2">
+                      {searchQuery ? 'Tidak ada akun orang luar yang cocok dengan pencarian.' : 'Tidak ada akun orang luar terdeteksi.'}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Table */}
           <div className="overflow-x-auto custom-scrollbar">
@@ -1034,7 +1213,7 @@ export function RekapGenerator({
               <thead>
                 <tr className="text-slate-400 border-b border-slate-100 uppercase text-[10px] tracking-wider">
                   <th className="py-2.5 px-3 font-semibold">Divisi</th>
-                  <th className="py-2.5 px-3 font-semibold">Nama Karyawan</th>
+                  <th className="py-2.5 px-3 font-semibold">Nama Karyawan / Info Akun</th>
                   <th className="py-2.5 px-3 font-semibold">Username 1</th>
                   <th className="py-2.5 px-3 font-semibold">Username 2</th>
                   <th className="py-2.5 px-3 font-semibold text-center">Status Kerja</th>
@@ -1043,80 +1222,322 @@ export function RekapGenerator({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filteredDetailResults.length > 0 ? (
-                  filteredDetailResults.map((item) => (
+                {/* 1. ORANG LUAR ROWS (WHEN VIEW MODE IS 'top' OR FILTER IS 'ORANG_LUAR' OR 'ALL') */}
+                {(selectedStatusFilter === 'ORANG_LUAR' || (selectedStatusFilter === 'ALL' && externalLikersViewMode === 'top')) && (
+                  selectedDivFilter === 'ALL' && filteredExternalLikers.map((username) => (
                     <tr
-                      key={item.employee.id}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        item.isPenalized ? 'bg-rose-50/20' : ''
-                      }`}
+                      key={`table-ext-top-${username}`}
+                      className="bg-amber-50/50 hover:bg-amber-100/60 transition-colors border-l-4 border-l-amber-500"
                     >
-                      <td className="py-2.5 px-3 font-bold text-slate-700">
-                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[10px] font-semibold">
-                          {item.employee.divisi}
+                      <td className="py-2.5 px-3 font-bold">
+                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300 inline-flex items-center gap-1">
+                          <Globe className="w-2.5 h-2.5 text-amber-700" />
+                          <span>NON-KARYAWAN</span>
                         </span>
                       </td>
                       <td className="py-2.5 px-3 font-bold text-slate-900">
-                        {item.employee.nama}
-                        {item.employee.keterangan && (
-                          <span className="block text-[10px] font-normal text-slate-400">
-                            {item.employee.keterangan}
+                        <div className="flex items-center gap-1.5">
+                          <span>Akun Publik / Orang Luar</span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200 text-amber-900">
+                            Non-DB
                           </span>
-                        )}
+                        </div>
+                        <span className="block text-[10px] font-normal text-amber-800">
+                          Bukan staf terdaftar di database
+                        </span>
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-600">
-                        @{item.employee.username1}
+                      <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">
+                        @{username}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-500">
-                        {item.employee.username2 ? `@${item.employee.username2}` : '-'}
+                      <td className="py-2.5 px-3 font-mono text-slate-400">
+                        -
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            item.employee.status === 'Normal'
-                              ? 'bg-slate-100 text-slate-700'
-                              : 'bg-orange-50 text-orange-700'
-                          }`}
-                        >
-                          {item.employee.status}
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          Orang Luar
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        {item.isExempt ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-100">
-                            Pengecualian ({item.employee.status})
-                          </span>
-                        ) : item.hasLiked ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                            <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
-                            Sudah Like
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100">
-                            <XCircle className="w-3 h-3 mr-1 text-rose-600" />
-                            KENA DENDA
-                          </span>
-                        )}
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
+                          Sudah Like (Publik)
+                        </span>
                       </td>
                       <td className="py-2.5 px-3 text-right">
-                        {item.matchedUsername && (
-                          <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                            matched: @{item.matchedUsername}
-                          </span>
-                        )}
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCopySingleUser(username)}
+                            className="text-[10px] font-mono text-slate-600 hover:text-indigo-600 bg-white px-2 py-0.5 rounded border border-slate-200 cursor-pointer flex items-center gap-1"
+                            title="Salin username"
+                          >
+                            {copiedSingleUser === username ? (
+                              <Check className="w-2.5 h-2.5 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-2.5 h-2.5" />
+                            )}
+                            <span>{copiedSingleUser === username ? 'Tersalin' : 'Salin'}</span>
+                          </button>
+                          <a
+                            href={`https://www.instagram.com/${username}/`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] font-mono text-indigo-600 hover:underline bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-flex items-center gap-1"
+                          >
+                            <span>Buka IG</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
                       </td>
                     </tr>
                   ))
-                ) : (
+                )}
+
+                {/* 2. REGULAR EMPLOYEE ROWS */}
+                {filteredDetailResults.map((item) => (
+                  <tr
+                    key={item.employee.id}
+                    className={`hover:bg-slate-50/80 transition-colors ${
+                      item.isPenalized ? 'bg-rose-50/20' : ''
+                    }`}
+                  >
+                    <td className="py-2.5 px-3 font-bold text-slate-700">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[10px] font-semibold">
+                        {item.employee.divisi}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">
+                      {item.employee.nama}
+                      {item.employee.keterangan && (
+                        <span className="block text-[10px] font-normal text-slate-400">
+                          {item.employee.keterangan}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-slate-600">
+                      @{item.employee.username1}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">
+                      {item.employee.username2 ? `@${item.employee.username2}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          item.employee.status === 'Normal'
+                            ? 'bg-slate-100 text-slate-700'
+                            : 'bg-orange-50 text-orange-700'
+                        }`}
+                      >
+                        {item.employee.status}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      {item.isExempt ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-100">
+                          Pengecualian ({item.employee.status})
+                        </span>
+                      ) : item.hasLiked ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                          <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
+                          Sudah Like
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100">
+                          <XCircle className="w-3 h-3 mr-1 text-rose-600" />
+                          KENA DENDA
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      {item.matchedUsername && (
+                        <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                          matched: @{item.matchedUsername}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+
+                {/* 3. ORANG LUAR ROWS (WHEN VIEW MODE IS 'bottom' AND FILTER IS 'ALL') */}
+                {selectedStatusFilter === 'ALL' && externalLikersViewMode === 'bottom' && selectedDivFilter === 'ALL' && (
+                  filteredExternalLikers.map((username) => (
+                    <tr
+                      key={`table-ext-bottom-${username}`}
+                      className="bg-amber-50/50 hover:bg-amber-100/60 transition-colors border-l-4 border-l-amber-500"
+                    >
+                      <td className="py-2.5 px-3 font-bold">
+                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300 inline-flex items-center gap-1">
+                          <Globe className="w-2.5 h-2.5 text-amber-700" />
+                          <span>NON-KARYAWAN</span>
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">
+                        <div className="flex items-center gap-1.5">
+                          <span>Akun Publik / Orang Luar</span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200 text-amber-900">
+                            Non-DB
+                          </span>
+                        </div>
+                        <span className="block text-[10px] font-normal text-amber-800">
+                          Bukan staf terdaftar di database
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">
+                        @{username}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-slate-400">
+                        -
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          Orang Luar
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
+                          Sudah Like (Publik)
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCopySingleUser(username)}
+                            className="text-[10px] font-mono text-slate-600 hover:text-indigo-600 bg-white px-2 py-0.5 rounded border border-slate-200 cursor-pointer flex items-center gap-1"
+                            title="Salin username"
+                          >
+                            {copiedSingleUser === username ? (
+                              <Check className="w-2.5 h-2.5 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-2.5 h-2.5" />
+                            )}
+                            <span>{copiedSingleUser === username ? 'Tersalin' : 'Salin'}</span>
+                          </button>
+                          <a
+                            href={`https://www.instagram.com/${username}/`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] font-mono text-indigo-600 hover:underline bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-flex items-center gap-1"
+                          >
+                            <span>Buka IG</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+
+                {/* Empty State */}
+                {filteredDetailResults.length === 0 && (selectedStatusFilter !== 'ORANG_LUAR' || filteredExternalLikers.length === 0) && (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-slate-400">
-                      Tidak ada data karyawan yang cocok dengan filter.
+                      Tidak ada data yang cocok dengan filter.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+
+          {/* DEDICATED ORANG LUAR / NON-DATABASE CARD (BOTTOM POSITION) */}
+          {externalLikersViewMode === 'bottom' && selectedStatusFilter !== 'ORANG_LUAR' && (
+            <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3 mt-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-amber-200/70">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
+                        Daftar Akun Orang Luar (Non-Database)
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                        {filteredExternalLikers.length} dari {result.unrecognizedLikers?.length || 0} Akun
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Username yang me-like postingan ini tapi tidak terdaftar di database karyawan (audiens / follower organik).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyExternalLikers('newline')}
+                    disabled={!result.unrecognizedLikers?.length}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      copiedExternalLikers
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
+                    }`}
+                  >
+                    {copiedExternalLikers ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedExternalLikers ? 'Semua Tersalin!' : `Salin Semua (${result.unrecognizedLikers?.length || 0})`}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsExternalLikersExpanded(!isExternalLikersExpanded)}
+                    className="p-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-xs font-semibold cursor-pointer"
+                    title={isExternalLikersExpanded ? 'Sembunyikan chip' : 'Tampilkan chip'}
+                  >
+                    {isExternalLikersExpanded ? 'Tutup' : 'Buka'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Chips Grid */}
+              {isExternalLikersExpanded && (
+                <div>
+                  {filteredExternalLikers.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1 custom-scrollbar">
+                      {filteredExternalLikers.map((username) => (
+                        <div
+                          key={`chip-bottom-${username}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-amber-200 hover:border-amber-400 text-slate-800 text-xs shadow-2xs group transition-all"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          <span className="font-mono font-medium text-slate-800">@{username}</span>
+                          
+                          <button
+                            type="button"
+                            onClick={() => handleCopySingleUser(username)}
+                            className="text-slate-400 hover:text-indigo-600 p-0.5 rounded cursor-pointer transition-colors"
+                            title="Salin username"
+                          >
+                            {copiedSingleUser === username ? (
+                              <Check className="w-3 h-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+
+                          <a
+                            href={`https://www.instagram.com/${username}/`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-slate-400 hover:text-indigo-600 p-0.5 rounded transition-colors"
+                            title="Buka profil Instagram"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-800/80 italic py-2">
+                      {searchQuery ? 'Tidak ada akun orang luar yang cocok dengan pencarian.' : 'Tidak ada akun orang luar terdeteksi.'}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

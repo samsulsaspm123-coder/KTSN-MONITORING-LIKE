@@ -763,56 +763,100 @@ export const GAS_INDEX_HTML = `<!DOCTYPE html>
 `;
 
 export const INSTAGRAM_CONSOLE_SCRIPT = `(async () => {
-    let dialog = document.querySelector('div[role="dialog"] div[style*="overflow"]');
+    const dialog = document.querySelector('div[role="dialog"]') || document.querySelector('div[aria-modal="true"]');
     if (!dialog) {
-        // Fallback pencarian kontainer scroll jika struktur div berbeda
-        dialog = document.querySelector('div[role="dialog"]');
+        alert("⚠️ Popup daftar Likes belum terbuka! Silakan klik jumlah Likes/Suka pada postingan Instagram dulu.");
+        return;
     }
     
-    let allUsernames = new Set();
+    // Temukan scrollable container di dalam modal
+    let scrollContainer = dialog;
+    const allDivs = dialog.querySelectorAll('div, section, ul');
+    for (let i = 0; i < allDivs.length; i++) {
+        const el = allDivs[i];
+        const style = window.getComputedStyle(el);
+        if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+            scrollContainer = el;
+            break;
+        }
+    }
+
+    const reservedWords = {
+        'p':1,'reel':1,'reels':1,'stories':1,'explore':1,'direct':1,'accounts':1,'about':1,
+        'legal':1,'privacy':1,'terms':1,'help':1,'settings':1,'profile':1,'home':1,
+        'instagram':1,'following':1,'followers':1,'likes':1,'suka':1,'ikuti':1,'mengikuti':1
+    };
+    
+    const allUsernames = new Set();
     let lastHeight = 0;
     let unchangedCount = 0;
 
-    console.log("🚀 Sedang mengumpulkan username, mohon tunggu sebentar...");
+    console.log("🚀 Sedang mengumpulkan username likers, mohon tunggu sebentar...");
 
-    while (unchangedCount < 5) {
-        // Ambil username yang terlihat saat ini
-        let links = Array.from(document.querySelectorAll('div[role="dialog"] a'))
-            .map(a => a.getAttribute('href'))
-            .filter(h => h && h.startsWith('/') && !h.includes('/explore/') && !h.includes('/direct/'))
-            .map(h => h.replaceAll('/', ''));
-            
-        links.forEach(u => allUsernames.add(u));
+    for (let step = 0; step < 45; step++) {
+        // Ambil dari link <a href="/username/">
+        const links = document.querySelectorAll('div[role="dialog"] a, div[aria-modal="true"] a');
+        links.forEach(a => {
+            const h = a.getAttribute('href');
+            if (h && typeof h === 'string') {
+                const clean = h.replace(/https?:\\/\\/[^\\/]+/i, '').replace(/\\?.*$/, '').replace(/^\\/+/, '').replace(/\\/+$/, '').trim();
+                if (clean && !clean.includes('/') && clean.length >= 2 && clean.length <= 32 && !reservedWords[clean.toLowerCase()]) {
+                    allUsernames.add(clean.toLowerCase());
+                }
+            }
+        });
 
-        // Scroll otomatis ke bawah
-        dialog.scrollTop += 500;
-        await new Promise(r => setTimeout(r, 800)); // Tunggu 0.8 detik agar data ter-load
+        // Ambil juga dari span username
+        const spans = document.querySelectorAll('div[role="dialog"] span, div[aria-modal="true"] span');
+        spans.forEach(s => {
+            const txt = (s.innerText || '').trim();
+            if (/^[a-zA-Z0-9._]{3,30}$/.test(txt) && !reservedWords[txt.toLowerCase()]) {
+                allUsernames.add(txt.toLowerCase());
+            }
+        });
 
-        // Cek apakah sudah sampai paling bawah
-        let newHeight = dialog.scrollTop;
+        // Scroll ke bawah
+        scrollContainer.scrollTop += 750;
+        await new Promise(r => setTimeout(r, 650));
+
+        const newHeight = scrollContainer.scrollTop;
         if (newHeight === lastHeight) {
             unchangedCount++;
+            if (unchangedCount >= 4) break;
         } else {
             unchangedCount = 0;
             lastHeight = newHeight;
         }
     }
 
-    console.log(\`✅ SELESAI! Ditemukan total \${allUsernames.size} username:\\n\`);
+    console.log(\`✅ SELESAI! Ditemukan total \${allUsernames.size} username likers:\\n\`);
     const output = Array.from(allUsernames).join('\\n');
     console.log(output);
 
     // Otomatis salin ke Clipboard
+    let copied = false;
     if (typeof copy === 'function') {
         copy(output);
-        console.log("📋 Hasil berhasil otomatis disalin ke Clipboard! Silakan paste di Web App Monitoring Like.");
-    } else if (navigator.clipboard) {
+        copied = true;
+    }
+    if (!copied) {
         try {
-            await navigator.clipboard.writeText(output);
-            console.log("📋 Hasil berhasil otomatis disalin ke Clipboard! Silakan paste di Web App Monitoring Like.");
+            const ta = document.createElement('textarea');
+            ta.value = output;
+            ta.style.position = 'fixed';
+            ta.style.top = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            copied = true;
         } catch(e) {}
     }
+
+    alert(\`✅ BERHASIL! \${allUsernames.size} username likers telah tersalin ke Clipboard!\\nSilakan buka Web App Monitoring dan tekan Ctrl+V (Paste).\`);
 })();`;
+
 
 export const SHEETS_TEMPLATE_STRUCTURE = [
   { column: 'A', header: 'Divisi', sample: 'KASIR', description: 'Nama Departemen/Divisi (contoh: KASIR, PRAMUNIAGA, GUDANG, VM, SPV)' },

@@ -9,6 +9,7 @@ import { GasDeployGuide } from './components/GasDeployGuide';
 import { ExtensionManager } from './components/ExtensionManager';
 import { FontPickerModal } from './components/FontPickerModal';
 import { GlobalMilestonePopup } from './components/GlobalMilestonePopup';
+import { LiveClock } from './components/LiveClock';
 import { Employee, FontFamilyId, FontSizeScale, ThemeMode } from './types';
 import { DEFAULT_EMPLOYEES } from './data/defaultEmployees';
 import { FONT_OPTIONS, FONT_SIZE_SCALES } from './data/fontOptions';
@@ -21,16 +22,11 @@ import {
   BookOpen,
   Terminal,
   Type,
-  Clock,
-  Sparkles,
-  Zap,
-  CheckCircle2,
   Palette,
   Minimize2,
   Maximize2,
   Moon,
-  Sun,
-  Calendar
+  Sun
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY_EMPLOYEES = 'likemonitor_employees_v1';
@@ -42,32 +38,26 @@ const LOCAL_STORAGE_KEY_THEME = 'likemonitor_theme_mode_v1';
 
 const TAB_ORDER: ActiveTab[] = ['rekap', 'desain', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
 
-// Motion Variants for smooth horizontal swipe + vertical lift + subtle blur transitions
+// Fast, lightweight Motion Variants: crisp GPU translate & opacity without expensive blur filters
 const tabVariants = {
   enter: (dir: number) => ({
     opacity: 0,
-    x: dir >= 0 ? 32 : -32,
-    y: 6,
-    filter: 'blur(3px)',
+    x: dir >= 0 ? 16 : -16,
   }),
   center: {
     opacity: 1,
     x: 0,
-    y: 0,
-    filter: 'blur(0px)',
     transition: {
-      duration: 0.24,
-      ease: [0.22, 1, 0.36, 1],
+      duration: 0.16,
+      ease: 'easeOut',
     },
   },
   exit: (dir: number) => ({
     opacity: 0,
-    x: dir >= 0 ? -28 : 28,
-    y: -4,
-    filter: 'blur(2px)',
+    x: dir >= 0 ? -12 : 12,
     transition: {
-      duration: 0.18,
-      ease: [0.22, 1, 0.36, 1],
+      duration: 0.12,
+      ease: 'easeIn',
     },
   }),
 };
@@ -163,36 +153,6 @@ export default function App() {
 
   const toggleTheme = () => {
     setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
-
-  // Realtime Live Clock State for Top Header
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatIndonesianDate = (date: Date) => {
-    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    const months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-    ];
-    const dayName = days[date.getDay()];
-    const dayNum = date.getDate();
-    const monthName = months[date.getMonth()];
-    const year = date.getFullYear();
-    return `${dayName}, ${dayNum} ${monthName} ${year}`;
-  };
-
-  const formatIndonesianTime = (date: Date) => {
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const seconds = date.getSeconds().toString().padStart(2, '0');
-    return `${hours}:${minutes}:${seconds} WIB`;
   };
 
   // Employee State with local storage persistence
@@ -329,49 +289,49 @@ export default function App() {
       title: 'Rekap Like Instagram (Format WA)',
       subtitle: 'Generator rekap harian WhatsApp otomatis, filter kuota, dan monitoring staff',
       icon: MessageSquare,
-      color: 'text-emerald-600 bg-emerald-100',
+      color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300',
     },
     desain: {
       title: 'Planning Aktifitas Harian & Jadwal Desain',
-      subtitle: 'Format WA Planning Diselipkan Jadwal Desain • Mode Polos (Gbr 1) & Ceklist ✅ (Gbr 2)',
+      subtitle: 'Format WA Planning Diselipkan Jadwal Desain • Mode Polos & Ceklist',
       icon: Palette,
-      color: 'text-emerald-600 bg-emerald-100',
+      color: 'text-purple-600 bg-purple-100 dark:bg-purple-950/60 dark:text-purple-300',
     },
     sosmed: {
       title: 'Laporan Posting Sosmed Harian (7 Post)',
-      subtitle: '3-in-1 Combo: Teks Format WA + Link Postingan + Lampiran Foto Screenshot',
+      subtitle: 'Teks Format WA + Link Postingan + Lampiran Foto Screenshot',
       icon: Share2,
-      color: 'text-pink-600 bg-pink-100',
+      color: 'text-pink-600 bg-pink-100 dark:bg-pink-950/60 dark:text-pink-300',
     },
     karyawan: {
       title: 'Database & Status Kuota Karyawan',
       subtitle: `Kelola ${employees.length} daftar staff, username Instagram, dan kepatuhan kuota like`,
       icon: Users,
-      color: 'text-indigo-600 bg-indigo-100',
+      color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-300',
     },
     extension: {
       title: 'Ekstensi Chrome & Bookmarklet Otomatis',
       subtitle: 'Alat bantu otomatis scrape data like postingan Instagram 1-klik',
       icon: Chrome,
-      color: 'text-amber-600 bg-amber-100',
+      color: 'text-amber-600 bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300',
     },
     code: {
       title: 'Kode Google Apps Script (Code.gs)',
       subtitle: 'Source code backend Google Sheets API & database sinkronisasi',
       icon: FileCode2,
-      color: 'text-sky-600 bg-sky-100',
+      color: 'text-sky-600 bg-sky-100 dark:bg-sky-950/60 dark:text-sky-300',
     },
     guide: {
       title: 'Panduan Setup & Panduan Lengkap',
       subtitle: 'Langkah demi langkah integrasi Google Sheets, Apps Script, dan sistem like',
       icon: BookOpen,
-      color: 'text-purple-600 bg-purple-100',
+      color: 'text-purple-600 bg-purple-100 dark:bg-purple-950/60 dark:text-purple-300',
     },
     console: {
       title: 'Script Console Instagram DevTools',
       subtitle: 'Kode JavaScript untuk mengambil username like langsung dari browser console',
       icon: Terminal,
-      color: 'text-rose-600 bg-rose-100',
+      color: 'text-rose-600 bg-rose-100 dark:bg-rose-950/60 dark:text-rose-300',
     },
   };
 
@@ -454,26 +414,8 @@ export default function App() {
 
           {/* Right Header: Realtime Clock/Date + Mode Ringkas + Connected Status */}
           <div className="flex items-center gap-2.5 shrink-0">
-            {/* Realtime Live Day, Date & Clock Widget */}
-            <div
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs shadow-2xs transition-colors"
-              title="Waktu dan Tanggal Sistem Saat Ini"
-            >
-              {/* Full Day and Date in Indonesian */}
-              <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-bold">
-                <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                <span>{formatIndonesianDate(currentTime)}</span>
-              </div>
-
-              {/* Subtle Divider */}
-              <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
-
-              {/* Live Ticking Time */}
-              <div className="flex items-center gap-1.5 font-mono font-black text-indigo-700 dark:text-indigo-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800 shadow-2xs">
-                <Clock className="w-3 h-3 text-emerald-500 animate-pulse shrink-0" />
-                <span>{formatIndonesianTime(currentTime)}</span>
-              </div>
-            </div>
+            {/* Realtime Live Day, Date & Clock Widget (Self-contained, zero root re-renders) */}
+            <LiveClock />
 
             {/* Mode Ringkas Toggle Switch Button */}
             <button
@@ -482,13 +424,13 @@ export default function App() {
               onClick={() => setCompactMode((prev) => !prev)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer shadow-2xs ${
                 compactMode
-                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700 ring-2 ring-indigo-300/50 shadow-indigo-600/20'
+                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700 ring-2 ring-indigo-300/50 shadow-xs'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 hover:border-indigo-400 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700'
               }`}
               title={
                 compactMode
-                  ? 'Mode Ringkas AKTIF: Elemen deskripsi dan banner disembunyikan agar tampilan bersih, ringan, dan pas di layar laptop kecil. Klik untuk kembali ke Mode Normal.'
-                  : 'Aktifkan Mode Ringkas: Sembunyikan elemen deskripsi di setiap tab agar antarmuka lebih bersih & hemat ruang layar laptop.'
+                  ? 'Mode Ringkas AKTIF: Elemen deskripsi dan banner disembunyikan agar tampilan bersih, ringan, dan pas di layar laptop kecil.'
+                  : 'Aktifkan Mode Ringkas: Sembunyikan elemen deskripsi di setiap tab agar antarmuka lebih bersih & hemat RAM.'
               }
             >
               {compactMode ? (
@@ -512,7 +454,7 @@ export default function App() {
 
             {/* Google Sheets Connection Pill */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-bold shadow-2xs">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0" />
+              <span className="w-2 h-2 bg-emerald-500 rounded-full shrink-0" />
               <span>Connected</span>
             </div>
           </div>
@@ -525,11 +467,11 @@ export default function App() {
               initial={{ opacity: 0, y: -20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ duration: 0.18 }}
+              transition={{ duration: 0.15 }}
               className="fixed top-16 right-8 z-50 pointer-events-none"
             >
-              <div className="bg-slate-900/95 text-white px-3.5 py-2 rounded-xl shadow-xl border border-slate-700 flex items-center gap-2.5 backdrop-blur-md">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <div className="bg-slate-900/95 text-white px-3.5 py-2 rounded-xl shadow-xl border border-slate-700 flex items-center gap-2.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
                 <span className="text-xs font-medium text-slate-300">Navigasi Cepat:</span>
                 <kbd className="px-1.5 py-0.5 rounded bg-indigo-600 text-white font-mono text-xs font-black shadow-xs">
                   {lastShortcutKey}
@@ -639,10 +581,10 @@ export default function App() {
             id="floating-btn-theme-toggle"
             type="button"
             onClick={toggleTheme}
-            className={`px-3.5 py-2 rounded-full shadow-lg border flex items-center gap-2 text-xs font-bold transition-all hover:scale-105 cursor-pointer backdrop-blur-md ${
+            className={`px-3.5 py-2 rounded-full shadow-lg border flex items-center gap-2 text-xs font-bold transition-transform hover:scale-105 cursor-pointer ${
               themeMode === 'dark'
-                ? 'bg-slate-900/95 hover:bg-black text-amber-300 border-slate-700 shadow-amber-950/30 ring-1 ring-amber-400/30'
-                : 'bg-white/95 hover:bg-slate-100 text-slate-800 border-slate-300 shadow-slate-900/10'
+                ? 'bg-slate-900 text-amber-300 border-slate-700'
+                : 'bg-white text-slate-800 border-slate-300'
             }`}
             title={
               themeMode === 'dark'
@@ -663,8 +605,8 @@ export default function App() {
           {/* Floating Quick Font Picker Widget */}
           <button
             onClick={() => setIsFontModalOpen(true)}
-            className="px-3.5 py-2 bg-slate-900/90 hover:bg-slate-950 text-white rounded-full shadow-lg border border-slate-700 flex items-center gap-2 text-xs font-bold transition-all hover:scale-105 cursor-pointer backdrop-blur-md"
-            title="Klik untuk memilih font favorit Anda (9 Pilihan Font)"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-950 text-white rounded-full shadow-lg border border-slate-700 flex items-center gap-2 text-xs font-bold transition-transform hover:scale-105 cursor-pointer"
+            title="Klik untuk memilih font favorit Anda"
           >
             <Type className="w-3.5 h-3.5 text-indigo-400" />
             <span className="hidden sm:inline">Pilih Font:</span>
@@ -683,49 +625,49 @@ export default function App() {
         />
 
         {/* Footer Branding */}
-        <footer className="bg-white border-t border-slate-200 mt-auto py-5 text-xs text-slate-500">
+        <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 mt-auto py-5 text-xs text-slate-500 dark:text-slate-400">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center space-x-2.5">
               <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-white font-bold text-xs">
                 {storeCode.charAt(0) || 'K'}
               </div>
-              <span className="font-bold text-slate-800 text-xs">
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
                 {storeCode} Monitoring System &bull; Retail Employee Instagram Engagement
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 font-medium">
+            <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
               <button
                 onClick={() => handleTabChange('rekap')}
-                className="hover:text-indigo-600 cursor-pointer transition-colors"
+                className="hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-colors"
               >
                 Generator Rekap
               </button>
               <span>&bull;</span>
               <button
                 onClick={() => handleTabChange('desain')}
-                className="hover:text-purple-600 cursor-pointer transition-colors font-bold text-purple-700"
+                className="hover:text-purple-600 dark:hover:text-purple-400 cursor-pointer transition-colors font-bold text-purple-700 dark:text-purple-300"
               >
                 Planning &amp; Desain
               </button>
               <span>&bull;</span>
               <button
                 onClick={() => handleTabChange('sosmed')}
-                className="hover:text-indigo-600 cursor-pointer transition-colors font-bold text-pink-600"
+                className="hover:text-pink-600 dark:hover:text-pink-400 cursor-pointer transition-colors font-bold text-pink-600 dark:text-pink-300"
               >
                 Laporan Sosmed (7 Post)
               </button>
               <span>&bull;</span>
               <button
                 onClick={() => handleTabChange('karyawan')}
-                className="hover:text-indigo-600 cursor-pointer transition-colors"
+                className="hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-colors"
               >
                 Data Karyawan ({employees.length})
               </button>
               <span>&bull;</span>
               <button
                 onClick={() => setIsFontModalOpen(true)}
-                className="hover:text-indigo-600 cursor-pointer transition-colors flex items-center gap-1 font-bold text-indigo-700"
+                className="hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-colors flex items-center gap-1 font-bold text-indigo-700 dark:text-indigo-300"
               >
                 <Type className="w-3 h-3 text-indigo-500" />
                 <span>Ganti Font ({currentFontObj.name})</span>
@@ -733,9 +675,9 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              <span>System v2.4.0</span>
+              <span>System v2.5.0</span>
               <span>&bull;</span>
-              <span>Retail Audit Ready</span>
+              <span>Lightweight Edition</span>
             </div>
           </div>
         </footer>

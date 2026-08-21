@@ -48,6 +48,7 @@ export interface LikersProcessResult {
   allResults: EmployeeCheckResult[];
   waTextOutput: string;
   unrecognizedLikersCount: number;
+  unrecognizedLikers: string[];
 }
 
 export interface SheetConfig {

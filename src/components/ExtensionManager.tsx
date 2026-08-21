@@ -403,24 +403,54 @@ export function ExtensionManager({ compactMode = false, onNavigateToRekap }: Ext
           {/* Cara Pakai Bookmarklet */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-              <strong className="block text-slate-900 text-xs">1. Buka Postingan IG</strong>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">1</span>
+                <span>Buka Modal Likes IG</span>
+              </div>
               <p className="text-[11px] text-slate-600">
-                Buka postingan Instagram di browser lalu klik tulisan jumlah <b>"Likes/Suka"</b>.
+                Buka postingan Instagram di browser lalu klik tulisan jumlah <b>"Likes/Suka"</b> hingga popup daftar orang muncul.
               </p>
             </div>
 
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-              <strong className="block text-slate-900 text-xs">2. Klik Bookmark</strong>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">2</span>
+                <span>Klik Bookmark di Atas</span>
+              </div>
               <p className="text-[11px] text-slate-600">
-                Klik tombol <b>⚡ Ekstrak Likers IG</b> di baris bookmark browser Anda.
+                Klik tombol <b>⚡ Ekstrak Likers IG</b> di baris bookmark browser Anda. Panel mini melayang (HUD) akan langsung muncul di pojok kanan atas Instagram.
               </p>
             </div>
 
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-              <strong className="block text-slate-900 text-xs">3. Paste di Web App</strong>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">3</span>
+                <span>Auto-Salin ke Clipboard</span>
+              </div>
               <p className="text-[11px] text-slate-600">
-                Semua username otomatis tersalin ke Clipboard. Tinggal tekan <b>Ctrl+V</b> di Generator Rekap!
+                Setelah selesai men-scroll, semua username otomatis tersalin ke Clipboard. Cukup buka Web App Monitoring dan tekan <b>Ctrl+V</b> (Paste)!
               </p>
+            </div>
+          </div>
+
+          {/* Info Troubleshooting & Kenapa Ekstensi Lebih Direkomendasikan */}
+          <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2 text-xs text-amber-950">
+            <div className="font-bold flex items-center gap-2 text-amber-900">
+              <Info className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Penting: Mengapa Bookmarklet Sebelumnya Bisa Tidak Merespon?</span>
+            </div>
+            <p className="text-[11px] text-amber-900 leading-relaxed">
+              Instagram memiliki sistem keamanan <b>Content Security Policy (CSP)</b> yang sangat ketat pada browser modern. Jika bookmarklet sebelumnya tidak menampilkan apa-apa saat diklik, hal itu disebabkan browser Chrome memblokir script tanpa visual feedback atau modal Suka Instagram belum sempat terbuka.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <div className="bg-white/80 p-2.5 rounded-lg border border-amber-200">
+                <span className="font-semibold block text-slate-900 text-[11px]">✨ Versi Terbaru (Floating HUD):</span>
+                <span className="text-[10px] text-slate-600">Bookmarklet versi baru di atas kini langsung memunculkan <b>Panel Melayang (HUD)</b> visual di pojok kanan Instagram sehingga proses scroll dan jumlah likers terpantau 100% real-time.</span>
+              </div>
+              <div className="bg-white/80 p-2.5 rounded-lg border border-amber-200">
+                <span className="font-semibold block text-slate-900 text-[11px]">🛡️ Alternatif Paling Handal:</span>
+                <span className="text-[10px] text-slate-600">Gunakan <b>Ekstensi Chrome (.ZIP)</b> pada tab 1 atau <b>Script F12 Console</b> pada tab 3 yang 100% kebal dari proteksi browser dan bekerja di semua versi Instagram.</span>
+              </div>
             </div>
           </div>
 
