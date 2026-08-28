@@ -44,6 +44,12 @@ import {
 import { SosmedPostItem, SocialPlatform, PostContentType, TimeSlot } from '../types';
 import { DEFAULT_SOSMED_POSTS, SOSMED_PLATFORM_CONFIG } from '../data/defaultSosmedPosts';
 import { PostingMilestoneTimer } from './PostingMilestoneTimer';
+import {
+  saveImageToDB,
+  getImageFromDB,
+  deleteImageFromDB,
+  compressImageDataUrl
+} from '../utils/sosmedStorage';
 
 const LOCAL_STORAGE_KEY_SOSMED = 'likemonitor_sosmed_posts_v1';
 const LOCAL_STORAGE_KEY_STORE_NAME = 'likemonitor_sosmed_store_name_v1';
@@ -76,14 +82,29 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
     return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   });
 
-  // Posts array state with persistence
+  // Posts array state with persistence and auto-cleanup of legacy dummy titles
   const [posts, setPosts] = useState<SosmedPostItem[]>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_SOSMED);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          // If the user's browser still holds the old static template dummy titles, clean them to fresh empty strings
+          const isLegacyDummy = parsed.some(
+            (p) =>
+              p.title === 'GODA LEMON' ||
+              p.title === 'PERBEDAAN MESIN CUCI 1 TABUNG & 2 TABUNG' ||
+              p.title === 'PROMO MERDEKA ELEKTRONIK & HP'
+          );
+          if (isLegacyDummy) {
+            return DEFAULT_SOSMED_POSTS;
+          }
+          return parsed.map((p, idx) => ({
+            ...p,
+            order: p.order || idx + 1,
+            title: p.title || '',
+            url: p.url || '',
+          }));
         }
       }
     } catch {
@@ -91,6 +112,33 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
     }
     return DEFAULT_SOSMED_POSTS;
   });
+
+  // Auto-restore any high-resolution screenshot images from IndexedDB if stripped from localStorage
+  useEffect(() => {
+    let isMounted = true;
+    const restoreImages = async () => {
+      let hasUpdates = false;
+      const updated = await Promise.all(
+        posts.map(async (p) => {
+          if (!p.screenshotUrl) {
+            const dbImg = await getImageFromDB(p.id);
+            if (dbImg) {
+              hasUpdates = true;
+              return { ...p, screenshotUrl: dbImg };
+            }
+          }
+          return p;
+        })
+      );
+      if (hasUpdates && isMounted) {
+        setPosts(updated);
+      }
+    };
+    restoreImages();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Active filter tab
   const [filterSlot, setFilterSlot] = useState<string>('all');
@@ -150,12 +198,22 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
   // Active focused card for paste
   const [activePasteCardId, setActivePasteCardId] = useState<string | null>(null);
 
-  // Save to localStorage
+  // Save to localStorage safely (with quota overflow protection & IndexedDB fallback)
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY_SOSMED, JSON.stringify(posts));
-    } catch {
-      // Ignore
+    } catch (e) {
+      console.warn('localStorage quota reached, saving post metadata and keeping screenshots in IndexedDB', e);
+      try {
+        // Fallback: strip heavy base64 strings so titles, URLs, platforms, order, and status NEVER get lost
+        const lightweightPosts = posts.map((p) => ({
+          ...p,
+          screenshotUrl: undefined,
+        }));
+        localStorage.setItem(LOCAL_STORAGE_KEY_SOSMED, JSON.stringify(lightweightPosts));
+      } catch (innerErr) {
+        console.error('Failed to save to localStorage', innerErr);
+      }
     }
   }, [posts]);
 
@@ -179,10 +237,14 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
           const blob = items[i].getAsFile();
           if (blob) {
             const reader = new FileReader();
-            reader.onload = (event) => {
-              const base64 = event.target?.result as string;
-              updatePost(activePasteCardId, {
-                screenshotUrl: base64,
+            const currentCardId = activePasteCardId;
+            reader.onload = async (event) => {
+              const rawBase64 = event.target?.result as string;
+              // Compress to ~100KB to prevent memory/storage issues
+              const compressed = await compressImageDataUrl(rawBase64, 1200, 1200, 0.85);
+              await saveImageToDB(currentCardId, compressed);
+              updatePost(currentCardId, {
+                screenshotUrl: compressed,
                 screenshotFileName: `screenshot-${Date.now()}.png`
               });
             };
@@ -198,7 +260,7 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
   }, [activePasteCardId]);
 
   // Helper to generate an automatic stylish branded screenshot mockup
-  const generateMockupScreenshot = (post: SosmedPostItem) => {
+  const generateMockupScreenshot = async (post: SosmedPostItem) => {
     const canvas = document.createElement('canvas');
     canvas.width = 1080;
     canvas.height = 1080;
@@ -298,20 +360,25 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
     ctx.font = '24px sans-serif';
     ctx.fillText('Laporan Harian Tim Desainer & Marketing', 110, 935);
 
-    const base64 = canvas.toDataURL('image/png');
+    const base64 = canvas.toDataURL('image/jpeg', 0.88);
+    await saveImageToDB(post.id, base64);
     updatePost(post.id, {
       screenshotUrl: base64,
-      screenshotFileName: `Mockup-SS-${post.platform}-${cleanTitle.replace(/\s+/g, '_')}.png`
+      screenshotFileName: `Mockup-SS-${post.platform}-${cleanTitle.replace(/\s+/g, '_')}.jpg`
     });
   };
 
   // Update a post item
   const updatePost = (id: string, updates: Partial<SosmedPostItem>) => {
+    if ('screenshotUrl' in updates && updates.screenshotUrl === undefined) {
+      deleteImageFromDB(id);
+    }
     setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
   };
 
   // Delete a post
   const deletePost = (id: string) => {
+    deleteImageFromDB(id);
     setPosts((prev) => prev.filter((p) => p.id !== id));
   };
 
@@ -393,16 +460,41 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
     setNewNotes('');
   };
 
-  // Reset to default daily 7 posts
+  // Reset to default daily 7 posts (with clean empty inputs ready to fill)
   const handleResetToDefault = () => {
-    if (window.confirm('Reset daftar postingan ke template rutin 7 postingan harian (Pagi, Siang, Sore)?')) {
+    if (window.confirm('Reset daftar postingan ke template rutin 7 postingan harian (Pagi, Siang, Sore)? Judul & Link akan dikosongkan agar siap diisi baru.')) {
       const resetList = DEFAULT_SOSMED_POSTS.map((p, idx) => ({
         ...p,
-        id: `post-default-${idx}-${Date.now()}`,
+        id: `post-default-${idx + 1}-${Date.now()}`,
         storeName: storeName,
-        isCompleted: false
+        title: '',
+        url: '',
+        notes: '',
+        screenshotUrl: undefined,
+        screenshotFileName: undefined,
+        isCompleted: false,
+        order: idx + 1
       }));
       setPosts(resetList);
+    }
+  };
+
+  // 1-Click Clear all titles, URLs and screenshots without deleting the 7 post structure
+  const handleClearAllInputs = () => {
+    if (window.confirm('Kosongkan semua Judul, Link URL, dan Lampiran Screenshot untuk mulai laporan hari ini?')) {
+      setPosts((prev) =>
+        prev.map((p) => {
+          deleteImageFromDB(p.id);
+          return {
+            ...p,
+            title: '',
+            url: '',
+            screenshotUrl: undefined,
+            screenshotFileName: undefined,
+            isCompleted: false
+          };
+        })
+      );
     }
   };
 
@@ -467,10 +559,17 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
     const config = SOSMED_PLATFORM_CONFIG[post.platform] || SOSMED_PLATFORM_CONFIG.OTHER;
     const prefix = (config.prefix || 'POST').toUpperCase();
     const sName = (post.storeName || storeName || 'MEGA KTSN').trim().toUpperCase();
-    const titleText = (post.title || 'PRODUK / PROMO TERBARU').trim().toUpperCase();
+    const titleText = (post.title || '').trim().toUpperCase();
     const urlText = post.url ? post.url.trim() : '';
 
-    return urlText ? `${prefix} ${sName}, ${titleText} ${urlText}` : `${prefix} ${sName}, ${titleText}`;
+    if (titleText && urlText) {
+      return `${prefix} ${sName}, ${titleText} ${urlText}`;
+    } else if (titleText) {
+      return `${prefix} ${sName}, ${titleText}`;
+    } else if (urlText) {
+      return `${prefix} ${sName} ${urlText}`;
+    }
+    return `${prefix} ${sName}`;
   };
 
   // =========================================================================
@@ -615,10 +714,12 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
+      reader.onload = async (event) => {
+        const rawBase64 = event.target?.result as string;
+        const compressed = await compressImageDataUrl(rawBase64, 1200, 1200, 0.85);
+        await saveImageToDB(postId, compressed);
         updatePost(postId, {
-          screenshotUrl: base64,
+          screenshotUrl: compressed,
           screenshotFileName: file.name
         });
       };
@@ -639,10 +740,11 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
       const config = SOSMED_PLATFORM_CONFIG[post.platform] || SOSMED_PLATFORM_CONFIG.OTHER;
       const prefix = (config.prefix || 'POST').toUpperCase();
       const sName = (post.storeName || storeName || 'MEGA KTSN').trim().toUpperCase();
-      const titleText = (post.title || 'PRODUK / PROMO TERBARU').trim().toUpperCase();
+      const titleText = (post.title || '').trim().toUpperCase();
       const checkMark = post.isCompleted ? '✅' : '⏳';
       const cleanUrl = post.url ? post.url.trim() : '';
-      text += `*${index + 1}) ${prefix} ${sName}, ${titleText}* ${cleanUrl} ${checkMark}\n\n`;
+      const titleDisplay = titleText ? `, ${titleText}` : '';
+      text += `*${index + 1}) ${prefix} ${sName}${titleDisplay}* ${cleanUrl} ${checkMark}\n\n`;
     });
 
     text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -794,14 +896,23 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleClearAllInputs}
+              className="text-[11px] text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-md border border-amber-500/30 flex items-center gap-1 cursor-pointer transition-colors"
+              title="Kosongkan semua Judul & Link URL agar siap input baru hari ini"
+            >
+              <Trash2 className="w-3 h-3 text-amber-400" />
+              <span>Kosongkan Judul &amp; Link</span>
+            </button>
+
             <button
               onClick={handleResetToDefault}
               className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
-              title="Reset ke daftar standar 7 postingan per hari"
+              title="Reset ke template standar 7 postingan per hari (kosong)"
             >
               <RefreshCw className="w-3 h-3" />
-              <span>Reset 7 Postingan Harian</span>
+              <span>Reset 7 Postingan</span>
             </button>
           </div>
         </div>
@@ -1216,7 +1327,7 @@ export function SosmedReportManager({ storeCode = 'MEGA KTSN', compactMode = fal
 
                           <a
                             href={post.screenshotUrl}
-                            download={`SS-${post.platform}-${post.title.replace(/\s+/g, '_')}.png`}
+                            download={`SS-${post.platform}-${(post.title || 'POST').replace(/\s+/g, '_')}.png`}
                             onClick={(e) => e.stopPropagation()}
                             className="text-[10px] font-bold px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition-colors flex items-center gap-1"
                             title="Unduh file gambar"

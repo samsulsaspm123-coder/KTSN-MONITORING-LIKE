@@ -8,10 +8,10 @@ export const DEFAULT_SOSMED_POSTS: SosmedPostItem[] = [
     contentType: 'Foto / Feed',
     timeSlot: 'Pagi',
     storeName: 'MEGA KTSN',
-    title: 'GODA LEMON',
-    url: 'https://www.instagram.com/p/DbsEJpwmnYy/',
-    notes: 'Feed Promo Sepeda Listrik Goda 001 Lemon',
-    isCompleted: true,
+    title: '',
+    url: '',
+    notes: '',
+    isCompleted: false,
     order: 1
   },
   {
@@ -20,10 +20,10 @@ export const DEFAULT_SOSMED_POSTS: SosmedPostItem[] = [
     contentType: 'Foto / Feed',
     timeSlot: 'Pagi',
     storeName: 'MEGA KTSN',
-    title: 'GODA LEMON',
-    url: 'https://www.facebook.com/photo?fbid=122319601742025366&set=pb.61550760992075.-2207520000',
-    notes: 'Mirroring dari Postingan IG Pagi',
-    isCompleted: true,
+    title: '',
+    url: '',
+    notes: '',
+    isCompleted: false,
     order: 2
   },
 
@@ -34,10 +34,10 @@ export const DEFAULT_SOSMED_POSTS: SosmedPostItem[] = [
     contentType: 'Reel / Video',
     timeSlot: 'Siang',
     storeName: 'MEGA KTSN',
-    title: 'PERBEDAAN MESIN CUCI 1 TABUNG & 2 TABUNG',
-    url: 'https://www.instagram.com/reel/C-xyz7890/',
-    notes: 'Reel Edukasi Produk Mesin Cuci',
-    isCompleted: true,
+    title: '',
+    url: '',
+    notes: '',
+    isCompleted: false,
     order: 3
   },
   {
@@ -46,10 +46,10 @@ export const DEFAULT_SOSMED_POSTS: SosmedPostItem[] = [
     contentType: 'Reel / Video',
     timeSlot: 'Siang',
     storeName: 'MEGA KTSN',
-    title: 'PERBEDAAN MESIN CUCI 1 TABUNG & 2 TABUNG',
-    url: 'https://www.facebook.com/reel/2127416521509881?locale=id_ID',
-    notes: 'Mirroring Reel Edukasi Facebook',
-    isCompleted: true,
+    title: '',
+    url: '',
+    notes: '',
+    isCompleted: false,
     order: 4
   },
 
@@ -60,9 +60,9 @@ export const DEFAULT_SOSMED_POSTS: SosmedPostItem[] = [
     contentType: 'Carousel',
     timeSlot: 'Sore / Malam',
     storeName: 'MEGA KTSN',
-    title: 'PROMO MERDEKA ELEKTRONIK & HP',
-    url: 'https://www.instagram.com/p/C-abc1234/',
-    notes: 'Katalog Promo Diskon Cicilan 0%',
+    title: '',
+    url: '',
+    notes: '',
     isCompleted: false,
     order: 5
   },
@@ -72,9 +72,9 @@ export const DEFAULT_SOSMED_POSTS: SosmedPostItem[] = [
     contentType: 'Carousel',
     timeSlot: 'Sore / Malam',
     storeName: 'MEGA KTSN',
-    title: 'PROMO MERDEKA ELEKTRONIK & HP',
-    url: 'https://www.facebook.com/photo?fbid=122319987654321',
-    notes: 'Mirroring Katalog Promo Sore',
+    title: '',
+    url: '',
+    notes: '',
     isCompleted: false,
     order: 6
   },
@@ -86,9 +86,9 @@ export const DEFAULT_SOSMED_POSTS: SosmedPostItem[] = [
     contentType: 'VT (Video TikTok)',
     timeSlot: 'Sore / Malam',
     storeName: 'MEGA KTSN',
-    title: 'REVIEW SPIL HARGA SEPEDA LISTRIK GODA',
-    url: 'https://www.tiktok.com/@megaelektronikktsn/video/7398123456789',
-    notes: 'VT Trend TikTok Sound Viral',
+    title: '',
+    url: '',
+    notes: '',
     isCompleted: false,
     order: 7
   }
