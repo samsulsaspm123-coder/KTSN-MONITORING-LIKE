@@ -56,7 +56,7 @@ export function RekapGenerator({
   onOpenSosmedReport,
 }: RekapGeneratorProps) {
   // Form State
-  const [urlPost, setUrlPost] = useState<string>('https://www.instagram.com/p/DAxKj2-z9Yw/');
+  const [urlPost, setUrlPost] = useState<string>('');
   const [rawLikersText, setRawLikersText] = useState<string>('');
   const [isAutoDate, setIsAutoDate] = useState<boolean>(true);
   const [customDate, setCustomDate] = useState<string>(formatDateIndo(new Date()));
@@ -221,6 +221,7 @@ export function RekapGenerator({
 
   // Clear inputs
   const handleClear = () => {
+    setUrlPost('');
     setRawLikersText('');
     setResult(null);
   };
@@ -238,7 +239,7 @@ export function RekapGenerator({
           // Auto trigger process
           setTimeout(() => {
             const res = processLikersData({
-              urlPost: urlPost || 'https://www.instagram.com/p/DAxKj2-z9Yw/',
+              urlPost: urlPost || '',
               rawLikersText: text,
               employees,
               customDate: effectiveDate,
@@ -543,10 +544,20 @@ export function RekapGenerator({
                   type="text"
                   value={urlPost}
                   onChange={(e) => setUrlPost(e.target.value)}
-                  placeholder="https://www.instagram.com/p/Cx4j..."
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm transition-all text-slate-900 font-medium pr-28"
+                  placeholder="https://www.instagram.com/p/..."
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm transition-all text-slate-900 font-medium pr-36"
                 />
-                <div className="absolute right-2 flex items-center gap-1">
+                <div className="absolute right-2 flex items-center gap-1.5">
+                  {urlPost && (
+                    <button
+                      type="button"
+                      onClick={() => setUrlPost('')}
+                      className="text-[11px] text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-200 cursor-pointer"
+                      title="Hapus Link"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {

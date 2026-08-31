@@ -125,6 +125,7 @@ export function compressImageDataUrl(dataUrl: string, maxWidth = 1200, maxHeight
 
       ctx.drawImage(img, 0, 0, width, height);
       try {
+        // High compatibility PNG or high-quality JPEG
         const compressed = canvas.toDataURL('image/jpeg', quality);
         resolve(compressed);
       } catch {
@@ -133,5 +134,60 @@ export function compressImageDataUrl(dataUrl: string, maxWidth = 1200, maxHeight
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
+  });
+}
+
+/**
+ * Convert any image (data URL, blob, jpeg, etc.) to a standard PNG Blob.
+ * This is STRICTLY REQUIRED because the Async Clipboard API (navigator.clipboard.write)
+ * and WhatsApp Web ONLY support 'image/png' on clipboard write.
+ */
+export async function convertToPngBlob(source: string | Blob): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    if (source instanceof Blob && source.type === 'image/png') {
+      resolve(source);
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    let objectUrlToRevoke: string | null = null;
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas 2D context failed'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+          if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to create PNG blob'));
+          }
+        }, 'image/png');
+      } catch (err) {
+        if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+        reject(err);
+      }
+    };
+
+    img.onerror = (err) => {
+      if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+      reject(err);
+    };
+
+    if (typeof source === 'string') {
+      img.src = source;
+    } else {
+      objectUrlToRevoke = URL.createObjectURL(source);
+      img.src = objectUrlToRevoke;
+    }
   });
 }

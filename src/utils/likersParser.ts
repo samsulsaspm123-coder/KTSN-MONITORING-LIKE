@@ -340,7 +340,9 @@ export function processLikersData({
   //  • [NAMA KARYAWAN 2]
   const waLines: string[] = [];
   waLines.push(`DATA LIKE ${dateStr} ${storeCode.trim()}`);
-  waLines.push(cleanPostUrl || 'https://www.instagram.com/p/...');
+  if (cleanPostUrl) {
+    waLines.push(cleanPostUrl);
+  }
   waLines.push(''); // Empty line
 
   let hasAnyPenalty = false;
