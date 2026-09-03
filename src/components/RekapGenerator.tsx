@@ -27,12 +27,17 @@ import {
   Chrome,
   Bookmark,
   Zap,
-  Clipboard
+  Clipboard,
+  RefreshCw,
+  Download,
+  QrCode,
+  Smartphone
 } from 'lucide-react';
 import { Employee, LikersProcessResult } from '../types';
 import { processLikersData, formatDateIndo, generateWhatsAppLink, extractUsernamesFromRawText, compareDivisions } from '../utils/likersParser';
 import { INSTAGRAM_CONSOLE_SCRIPT } from '../data/gasCodeSnippets';
-import { BOOKMARKLET_CODE } from '../data/extensionFiles';
+import { BOOKMARKLET_CODE, downloadExtensionZip } from '../data/extensionFiles';
+import { RecapBarcodeModal } from './RecapBarcodeModal';
 
 interface RekapGeneratorProps {
   employees: Employee[];
@@ -65,9 +70,11 @@ export function RekapGenerator({
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedScript, setCopiedScript] = useState<boolean>(false);
   const [copiedBookmarklet, setCopiedBookmarklet] = useState<boolean>(false);
+  const [isDownloadingExtensionZip, setIsDownloadingExtensionZip] = useState<boolean>(false);
   const [isQuickGuideOpen, setIsQuickGuideOpen] = useState<boolean>(false);
   const [isNetlifyGuideOpen, setIsNetlifyGuideOpen] = useState<boolean>(false);
   const [isExtensionModalOpen, setIsExtensionModalOpen] = useState<boolean>(false);
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState<boolean>(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
   
   // Breakdown Table Filter State
@@ -263,6 +270,18 @@ export function RekapGenerator({
     navigator.clipboard.writeText(BOOKMARKLET_CODE);
     setCopiedBookmarklet(true);
     setTimeout(() => setCopiedBookmarklet(false), 2000);
+  };
+
+  // Download Extension ZIP from modal
+  const handleDownloadExtensionZip = async () => {
+    try {
+      setIsDownloadingExtensionZip(true);
+      await downloadExtensionZip();
+    } catch (err) {
+      console.error('Failed to download extension:', err);
+    } finally {
+      setIsDownloadingExtensionZip(false);
+    }
   };
 
   // Copy all external likers list to clipboard
@@ -510,15 +529,9 @@ export function RekapGenerator({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (onOpenExtensionGuide) {
-                        onOpenExtensionGuide();
-                      } else {
-                        setIsExtensionModalOpen(true);
-                      }
-                    }}
+                    onClick={() => setIsExtensionModalOpen(true)}
                     className="text-[11px] text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md flex items-center gap-1 font-bold transition-colors cursor-pointer"
-                    title="Gunakan Ekstensi Chrome atau Bookmarklet untuk ekstrak otomatis"
+                    title="Buka pop up mini ekstrak otomatis (Bookmarklet, Ekstensi Chrome, Script Console)"
                   >
                     <Chrome className="w-3 h-3 text-amber-600" />
                     <span>⚡ Ekstrak Otomatis via Ekstensi / Bookmarklet</span>
@@ -560,14 +573,9 @@ export function RekapGenerator({
                   )}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (onOpenExtensionGuide) {
-                        onOpenExtensionGuide();
-                      } else {
-                        setIsExtensionModalOpen(true);
-                      }
-                    }}
+                    onClick={() => setIsExtensionModalOpen(true)}
                     className="text-[10px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Buka pop up mini 1-klik ekstrak likers"
                   >
                     <Zap className="w-3 h-3" />
                     <span>1-Klik Ekstrak</span>
@@ -854,20 +862,37 @@ export function RekapGenerator({
                   <p className="text-[11px] text-slate-400">Siap disalin atau diteruskan ke grup</p>
                 </div>
               </div>
-              <button
-                onClick={handleCopy}
-                disabled={!result}
-                className={`px-3 py-1.5 rounded text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  copied
-                    ? 'bg-emerald-600 text-white'
-                    : result
-                    ? 'bg-white/10 hover:bg-white/20 text-white'
-                    : 'bg-white/5 text-slate-500 cursor-not-allowed'
-                }`}
-              >
-                <Copy className="w-3 h-3" />
-                <span>{copied ? 'COPIED' : 'COPY TEXT'}</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsBarcodeModalOpen(true)}
+                  disabled={!result}
+                  className={`px-2.5 py-1.5 rounded text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    result
+                      ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 shadow-xs'
+                      : 'bg-white/5 text-slate-500 cursor-not-allowed'
+                  }`}
+                  title="Tampilkan Barcode QR untuk discan langsung dari kamera HP Anda"
+                >
+                  <QrCode className="w-3 h-3 text-amber-400" />
+                  <span>BARCODE HP</span>
+                </button>
+
+                <button
+                  onClick={handleCopy}
+                  disabled={!result}
+                  className={`px-3 py-1.5 rounded text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    copied
+                      ? 'bg-emerald-600 text-white'
+                      : result
+                      ? 'bg-white/10 hover:bg-white/20 text-white'
+                      : 'bg-white/5 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>{copied ? 'COPIED' : 'COPY TEXT'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Metrics Chips */}
@@ -937,7 +962,7 @@ export function RekapGenerator({
             </div>
 
             {/* Quick action buttons */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleCopy}
@@ -967,7 +992,52 @@ export function RekapGenerator({
                 <Send className="w-3.5 h-3.5" />
                 <span>Buka di WA</span>
               </a>
+
+              <button
+                type="button"
+                onClick={() => setIsBarcodeModalOpen(true)}
+                disabled={!result}
+                className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  result
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md shadow-amber-500/20 active:scale-[0.98]'
+                    : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
+                }`}
+                title="Tampilkan barcode QR untuk discan langsung dari kamera HP Anda"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Scan Barcode HP</span>
+              </button>
             </div>
+
+            {/* Quick Helper Banner: WA Laptop Susah / Lemot Buka */}
+            {result && (
+              <div className="bg-gradient-to-r from-amber-950/40 via-slate-800/90 to-slate-800/90 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-400/30 text-amber-400 flex items-center justify-center shrink-0">
+                    <Smartphone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>WA di Laptop Susah Buka?</span>
+                      <span className="text-[9px] text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded font-bold border border-amber-500/30">
+                        Scan Barcode
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Scan barcode di layar &rarr; teks rekap denda langsung pindah ke WhatsApp HP Anda.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBarcodeModalOpen(true)}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-1.5 shrink-0 shadow-sm transition-colors cursor-pointer"
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span>Scan di HP</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Setup Instruction & Deployment Card */}
@@ -1865,23 +1935,36 @@ export function RekapGenerator({
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-700 custom-scrollbar">
               
-              {/* Option 1: Bookmarklet (Fastest) */}
-              <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-3">
+              {/* Option 1: Bookmarklet (Fastest & No Install) */}
+              <div className="p-4 bg-gradient-to-br from-amber-50/90 to-indigo-50/70 border-2 border-amber-300/80 rounded-2xl space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-amber-950 text-xs flex items-center gap-1.5">
+                  <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                     <Bookmark className="w-4 h-4 text-amber-600" />
-                    <span>Pilihan 1: Bookmarklet (Tanpa Perlu Install)</span>
+                    <span>Pilihan 1: Bookmarklet (Super Cepat &amp; Tanpa Install)</span>
                   </span>
                   <button
+                    type="button"
                     onClick={handleCopyBookmarklet}
-                    className="text-[11px] font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                    className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 bg-white/80 hover:bg-white px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1"
                   >
-                    {copiedBookmarklet ? 'Tersalin!' : 'Salin Kode'}
+                    {copiedBookmarklet ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700">Kode Tersalin!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Salin Kode</span>
+                      </>
+                    )}
                   </button>
                 </div>
-                <p className="text-[11px] text-amber-900 leading-relaxed">
-                  Tinggal seret tombol di bawah ini ke <b>Bookmark Bar browser Anda</b>. Saat membuka likes di Instagram, cukup klik bookmark tersebut &gt; username otomatis tersalin ke clipboard!
+
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Seret tombol di bawah ke <b>Bookmarks Bar (Ctrl+Shift+B)</b>, atau <b>klik tombol</b> untuk langsung menyalin kodenya:
                 </p>
+
                 <div className="flex justify-center pt-1">
                   <a
                     href={BOOKMARKLET_CODE}
@@ -1889,37 +1972,66 @@ export function RekapGenerator({
                       e.preventDefault();
                       handleCopyBookmarklet();
                     }}
-                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2 cursor-grab active:cursor-grabbing hover:scale-105 transition-transform"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-500 via-indigo-600 to-indigo-700 hover:from-amber-600 hover:to-indigo-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-transform"
                     title="Seret ke bar bookmark atau klik untuk salin kode"
                   >
-                    <Zap className="w-3.5 h-3.5 fill-current" />
-                    <span>⚡ Ekstrak Likers IG (Seret ke Bookmark Bar)</span>
+                    {copiedBookmarklet ? <Check className="w-4 h-4 text-emerald-300" /> : <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />}
+                    <span>{copiedBookmarklet ? '✅ Kode Bookmarklet Tersalin!' : '⚡ Ekstrak Likers IG (Seret ke Bar / Klik Salin)'}</span>
                   </a>
+                </div>
+
+                <div className="text-[10px] text-slate-500 bg-white/60 p-2.5 rounded-lg border border-slate-200/60 space-y-1">
+                  <div className="font-semibold text-slate-700">💡 Cara Pakai di Instagram:</div>
+                  <ol className="list-decimal pl-4 space-y-0.5 text-slate-600">
+                    <li>Buka postingan IG di tab baru &gt; Klik jumlah <b>Suka / Likes</b> agar modal daftar nama terbuka.</li>
+                    <li>Klik <b>⚡ Ekstrak Likers IG</b> di bar bookmark Anda.</li>
+                    <li>Pop up mini HUD progress otomatis muncul di layar IG &amp; semua username likers langsung tersalin ke clipboard!</li>
+                  </ol>
                 </div>
               </div>
 
               {/* Option 2: Full Chrome Extension */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                     <Chrome className="w-4 h-4 text-indigo-600" />
-                    <span>Pilihan 2: Ekstensi Chrome (.ZIP)</span>
+                    <span>Pilihan 2: Ekstensi Chrome (.ZIP Lengkap)</span>
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Pasang ekstensi permanen di Google Chrome / Edge untuk ekstraksi likers dengan 1-klik di pojok kanan atas browser.
+                  Ekstensi resmi dengan ikon petir di pojok kanan atas browser Anda untuk auto-scroll dan ekstrak hingga ribuan likers.
                 </p>
-                <div className="pt-2 flex items-center gap-2">
+                <div className="pt-1 flex flex-wrap items-center gap-2">
                   <button
+                    type="button"
+                    onClick={handleDownloadExtensionZip}
+                    disabled={isDownloadingExtensionZip}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                  >
+                    {isDownloadingExtensionZip ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Menyiapkan ZIP...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Unduh Ekstensi ZIP</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => {
                       setIsExtensionModalOpen(false);
                       if (onOpenExtensionGuide) {
                         onOpenExtensionGuide();
                       }
                     }}
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer"
+                    className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
                   >
-                    <span>Buka Tab Ekstensi &amp; Unduh ZIP &rarr;</span>
+                    <span>Panduan Lengkap &rarr;</span>
                   </button>
                 </div>
               </div>
@@ -1929,9 +2041,10 @@ export function RekapGenerator({
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                     <Terminal className="w-4 h-4 text-slate-700" />
-                    <span>Pilihan 3: Script Console F12</span>
+                    <span>Pilihan 3: Script Console F12 (Tanpa Pasang Apapun)</span>
                   </span>
                   <button
+                    type="button"
                     onClick={handleCopyScript}
                     className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
                   >
@@ -1939,17 +2052,48 @@ export function RekapGenerator({
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Tekan <b>F12 &gt; Console</b> di halaman Instagram dan paste script untuk menyalin ratusan username dalam 2 detik.
+                  Buka tab Instagram &gt; Tekan <b>F12 &gt; Console</b> &gt; Paste script &gt; Tekan Enter. Likers langsung tersalin dalam 2 detik.
                 </p>
               </div>
 
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">
-                Semua metode 100% aman dan berjalan di browser Anda sendiri.
-              </span>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const text = await navigator.clipboard.readText();
+                    if (text && text.trim()) {
+                      setRawLikersText(text.trim());
+                      setIsExtensionModalOpen(false);
+                      setTimeout(() => {
+                        const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
+                        const res = processLikersData({
+                          urlPost: urlPost.trim(),
+                          rawLikersText: text.trim(),
+                          employees,
+                          customDate: effectiveDate,
+                          storeCode: storeCode || 'KTSN',
+                        });
+                        setResult(res);
+                      }, 100);
+                    } else {
+                      setIsExtensionModalOpen(false);
+                      alert('Clipboard masih kosong. Silakan salin likers dari IG terlebih dahulu.');
+                    }
+                  } catch {
+                    setIsExtensionModalOpen(false);
+                  }
+                }}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                title="Tempel teks likers yang ada di clipboard dan proses rekap langsung"
+              >
+                <Clipboard className="w-4 h-4" />
+                <span>Tempel dari Clipboard &amp; Mulai Rekap</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsExtensionModalOpen(false)}
@@ -1962,6 +2106,13 @@ export function RekapGenerator({
           </div>
         </div>
       )}
+
+      {/* Barcode QR Modal for Phone Scanning */}
+      <RecapBarcodeModal
+        isOpen={isBarcodeModalOpen}
+        onClose={() => setIsBarcodeModalOpen(false)}
+        result={result}
+      />
 
     </div>
   );

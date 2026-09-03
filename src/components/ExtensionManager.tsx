@@ -25,7 +25,8 @@ import {
   CHROME_EXTENSION_POPUP_JS,
   CHROME_EXTENSION_CONTENT_JS,
   BOOKMARKLET_CODE,
-  CHROME_EXTENSION_README
+  CHROME_EXTENSION_README,
+  downloadExtensionZip
 } from '../data/extensionFiles';
 import { INSTAGRAM_CONSOLE_SCRIPT } from '../data/gasCodeSnippets';
 
@@ -47,27 +48,7 @@ export function ExtensionManager({ compactMode = false, onNavigateToRekap }: Ext
   const handleDownloadZip = async () => {
     try {
       setIsDownloading(true);
-      const zip = new JSZip();
-
-      // Add files to zip
-      zip.file('manifest.json', CHROME_EXTENSION_MANIFEST);
-      zip.file('popup.html', CHROME_EXTENSION_POPUP_HTML);
-      zip.file('popup.js', CHROME_EXTENSION_POPUP_JS);
-      zip.file('content.js', CHROME_EXTENSION_CONTENT_JS);
-      zip.file('README.md', CHROME_EXTENSION_README);
-
-      // Generate blob
-      const content = await zip.generateAsync({ type: 'blob' });
-      
-      // Trigger download
-      const url = URL.createObjectURL(content);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'IG-Liker-Exporter-Chrome-Extension.zip';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      await downloadExtensionZip();
     } catch (err) {
       console.error('Download error:', err);
     } finally {
@@ -386,13 +367,13 @@ export function ExtensionManager({ compactMode = false, onNavigateToRekap }: Ext
               href={BOOKMARKLET_CODE}
               onClick={(e) => {
                 e.preventDefault();
-                alert('💡 Untuk memasang: Seret (drag & drop) tombol ini ke Bookmarks Bar browser Anda (Ctrl+Shift+B jika belum muncul bar-nya).');
+                handleCopyBookmarklet();
               }}
               className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-2 cursor-grab active:cursor-grabbing hover:scale-105 transition-transform"
-              title="Seret saya ke Bookmark Bar browser Anda!"
+              title="Seret saya ke Bookmark Bar atau klik untuk langsung salin kodenya!"
             >
-              <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
-              <span>⚡ Ekstrak Likers IG</span>
+              {copiedBookmarklet ? <Check className="w-4 h-4 text-emerald-300" /> : <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />}
+              <span>{copiedBookmarklet ? '✅ Kode Tersalin ke Clipboard!' : '⚡ Ekstrak Likers IG (Seret / Klik Salin)'}</span>
             </a>
 
             <p className="text-[11px] text-slate-500 max-w-md">
