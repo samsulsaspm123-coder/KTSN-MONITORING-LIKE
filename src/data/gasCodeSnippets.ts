@@ -763,86 +763,78 @@ export const GAS_INDEX_HTML = `<!DOCTYPE html>
 `;
 
 export const INSTAGRAM_CONSOLE_SCRIPT = `(async () => {
-    const dialog = document.querySelector('div[role="dialog"]') || document.querySelector('div[aria-modal="true"]');
+    // 1. Temukan kontainer dialog dan scrollable list likes Instagram
+    let dialog = document.querySelector('div[role="dialog"] div[style*="overflow"]');
+    if (!dialog) {
+        dialog = document.querySelector('div[role="dialog"] div[style*="overflow-y"]');
+    }
+    if (!dialog) {
+        dialog = document.querySelector('div[role="dialog"]');
+    }
+    
     if (!dialog) {
         alert("⚠️ Popup daftar Likes belum terbuka! Silakan klik jumlah Likes/Suka pada postingan Instagram dulu.");
         return;
     }
     
-    // Temukan scrollable container di dalam modal
-    let scrollContainer = dialog;
-    const allDivs = dialog.querySelectorAll('div, section, ul');
-    for (let i = 0; i < allDivs.length; i++) {
-        const el = allDivs[i];
-        const style = window.getComputedStyle(el);
-        if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
-            scrollContainer = el;
-            break;
-        }
-    }
-
-    const reservedWords = {
-        'p':1,'reel':1,'reels':1,'stories':1,'explore':1,'direct':1,'accounts':1,'about':1,
-        'legal':1,'privacy':1,'terms':1,'help':1,'settings':1,'profile':1,'home':1,
-        'instagram':1,'following':1,'followers':1,'likes':1,'suka':1,'ikuti':1,'mengikuti':1
-    };
-    
-    const allUsernames = new Set();
+    let allUsernames = new Set();
     let lastHeight = 0;
     let unchangedCount = 0;
+    let step = 0;
 
     console.log("🚀 Sedang mengumpulkan username likers, mohon tunggu sebentar...");
 
-    for (let step = 0; step < 45; step++) {
-        // Ambil dari link <a href="/username/">
-        const links = document.querySelectorAll('div[role="dialog"] a, div[aria-modal="true"] a');
-        links.forEach(a => {
-            const h = a.getAttribute('href');
-            if (h && typeof h === 'string') {
-                const clean = h.replace(/https?:\\/\\/[^\\/]+/i, '').replace(/\\?.*$/, '').replace(/^\\/+/, '').replace(/\\/+$/, '').trim();
-                if (clean && !clean.includes('/') && clean.length >= 2 && clean.length <= 32 && !reservedWords[clean.toLowerCase()]) {
-                    allUsernames.add(clean.toLowerCase());
-                }
-            }
-        });
+    while (unchangedCount < 5 && step < 60) {
+        // Ambil username yang terlihat saat ini
+        let links = Array.from(document.querySelectorAll('div[role="dialog"] a'))
+            .map(a => a.getAttribute('href'))
+            .filter(h => h && h.startsWith('/') && !h.includes('/explore/') && !h.includes('/direct/') && !h.includes('/stories/') && !h.includes('/reels/') && !h.includes('/p/'))
+            .map(h => h.replaceAll('/', '').trim().toLowerCase())
+            .filter(u => u && u.length >= 2 && u.length <= 32);
+            
+        links.forEach(u => allUsernames.add(u));
 
-        // Ambil juga dari span username
-        const spans = document.querySelectorAll('div[role="dialog"] span, div[aria-modal="true"] span');
-        spans.forEach(s => {
-            const txt = (s.innerText || '').trim();
-            if (/^[a-zA-Z0-9._]{3,30}$/.test(txt) && !reservedWords[txt.toLowerCase()]) {
-                allUsernames.add(txt.toLowerCase());
-            }
-        });
+        // Scroll otomatis ke bawah
+        dialog.scrollTop += 500;
+        try {
+            dialog.dispatchEvent(new Event('scroll', { bubbles: true }));
+        } catch(e) {}
 
-        // Scroll ke bawah
-        scrollContainer.scrollTop += 750;
-        await new Promise(r => setTimeout(r, 650));
+        await new Promise(r => setTimeout(r, 800)); // Tunggu 0.8 detik agar data ter-load
 
-        const newHeight = scrollContainer.scrollTop;
+        // Cek apakah sudah sampai paling bawah
+        let newHeight = dialog.scrollTop;
         if (newHeight === lastHeight) {
             unchangedCount++;
-            if (unchangedCount >= 4) break;
         } else {
             unchangedCount = 0;
             lastHeight = newHeight;
         }
+        step++;
     }
 
+    const resultText = Array.from(allUsernames).join('\\n');
     console.log(\`✅ SELESAI! Ditemukan total \${allUsernames.size} username likers:\\n\`);
-    const output = Array.from(allUsernames).join('\\n');
-    console.log(output);
+    console.log(resultText);
 
-    // Otomatis salin ke Clipboard
+    // Salin otomatis ke clipboard
     let copied = false;
     if (typeof copy === 'function') {
-        copy(output);
-        copied = true;
+        try {
+            copy(resultText);
+            copied = true;
+        } catch(e) {}
+    }
+    if (!copied && navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(resultText);
+            copied = true;
+        } catch(e) {}
     }
     if (!copied) {
         try {
             const ta = document.createElement('textarea');
-            ta.value = output;
+            ta.value = resultText;
             ta.style.position = 'fixed';
             ta.style.top = '-9999px';
             document.body.appendChild(ta);
@@ -854,7 +846,7 @@ export const INSTAGRAM_CONSOLE_SCRIPT = `(async () => {
         } catch(e) {}
     }
 
-    alert(\`✅ BERHASIL! \${allUsernames.size} username likers telah tersalin ke Clipboard!\\nSilakan buka Web App Monitoring dan tekan Ctrl+V (Paste).\`);
+    alert(\`✅ SELESAI! \${allUsernames.size} username likers berhasil diekstrak dan otomatis tersalin ke Clipboard!\\n\\nSilakan kembali ke Web App Monitoring dan klik "Tempel dari Clipboard" (atau Ctrl+V).\`);
 })();`;
 
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Instagram, 
   Send, 
@@ -85,6 +85,15 @@ export function RekapGenerator({
   const [copiedSingleUser, setCopiedSingleUser] = useState<string | null>(null);
   const [externalLikersViewMode, setExternalLikersViewMode] = useState<'top' | 'bottom' | 'table_only'>('top');
   const [isExternalLikersExpanded, setIsExternalLikersExpanded] = useState<boolean>(true);
+
+  // Ref to bypass React security filter for javascript: URLs when dragging to bookmark bar
+  const bookmarkletQuickRef = useRef<HTMLAnchorElement | null>(null);
+
+  useEffect(() => {
+    if (isExtensionModalOpen && bookmarkletQuickRef.current) {
+      bookmarkletQuickRef.current.setAttribute('href', BOOKMARKLET_CODE);
+    }
+  }, [isExtensionModalOpen]);
 
   // Real-time extracted usernames preview count
   const detectedUsernames = useMemo(() => {
@@ -1967,7 +1976,8 @@ export function RekapGenerator({
 
                 <div className="flex justify-center pt-1">
                   <a
-                    href={BOOKMARKLET_CODE}
+                    ref={bookmarkletQuickRef}
+                    href="#"
                     onClick={(e) => {
                       e.preventDefault();
                       handleCopyBookmarklet();
@@ -1980,12 +1990,12 @@ export function RekapGenerator({
                   </a>
                 </div>
 
-                <div className="text-[10px] text-slate-500 bg-white/60 p-2.5 rounded-lg border border-slate-200/60 space-y-1">
-                  <div className="font-semibold text-slate-700">💡 Cara Pakai di Instagram:</div>
-                  <ol className="list-decimal pl-4 space-y-0.5 text-slate-600">
-                    <li>Buka postingan IG di tab baru &gt; Klik jumlah <b>Suka / Likes</b> agar modal daftar nama terbuka.</li>
-                    <li>Klik <b>⚡ Ekstrak Likers IG</b> di bar bookmark Anda.</li>
-                    <li>Pop up mini HUD progress otomatis muncul di layar IG &amp; semua username likers langsung tersalin ke clipboard!</li>
+                <div className="text-[10px] text-slate-500 bg-white/60 p-2.5 rounded-lg border border-slate-200/60 space-y-1.5">
+                  <div className="font-semibold text-slate-700">💡 Cara Pasang & Pakai di Instagram:</div>
+                  <ol className="list-decimal pl-4 space-y-1 text-slate-600">
+                    <li><b>Cara Cepat:</b> Seret tombol di atas ke Bookmarks Bar Chrome (tekan <code>Ctrl+Shift+B</code> jika bar belum muncul).</li>
+                    <li><b>Cara Manual (Jika seret terhalang):</b> Klik tombol di atas untuk salin kode &gt; Tekan <code>Ctrl+Shift+O</code> di Chrome &gt; Klik titik 3 kanan atas &gt; <i>Add new bookmark</i> &gt; Paste kode di kolom URL &gt; Simpan.</li>
+                    <li>Buka postingan IG di tab baru &gt; Klik jumlah <b>Suka / Likes</b> agar modal terbuka &gt; Klik bookmark <b>⚡ Ekstrak Likers IG</b>.</li>
                   </ol>
                 </div>
               </div>

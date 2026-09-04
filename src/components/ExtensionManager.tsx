@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Download,
   Copy,
@@ -43,6 +43,15 @@ export function ExtensionManager({ compactMode = false, onNavigateToRekap }: Ext
   const [copiedBookmarklet, setCopiedBookmarklet] = useState<boolean>(false);
   const [copiedFile, setCopiedFile] = useState<boolean>(false);
   const [testIgUrl, setTestIgUrl] = useState<string>('https://www.instagram.com/p/DAxKj2-z9Yw/');
+
+  // Ref to bypass React security filter for javascript: URLs when dragging to bookmark bar
+  const bookmarkletAnchorRef = useRef<HTMLAnchorElement | null>(null);
+
+  useEffect(() => {
+    if (activeSubTab === 'bookmarklet' && bookmarkletAnchorRef.current) {
+      bookmarkletAnchorRef.current.setAttribute('href', BOOKMARKLET_CODE);
+    }
+  }, [activeSubTab]);
 
   // Handle Download Extension as ZIP
   const handleDownloadZip = async () => {
@@ -364,7 +373,8 @@ export function ExtensionManager({ compactMode = false, onNavigateToRekap }: Ext
             </p>
 
             <a
-              href={BOOKMARKLET_CODE}
+              ref={bookmarkletAnchorRef}
+              href="#"
               onClick={(e) => {
                 e.preventDefault();
                 handleCopyBookmarklet();
@@ -376,9 +386,12 @@ export function ExtensionManager({ compactMode = false, onNavigateToRekap }: Ext
               <span>{copiedBookmarklet ? '✅ Kode Tersalin ke Clipboard!' : '⚡ Ekstrak Likers IG (Seret / Klik Salin)'}</span>
             </a>
 
-            <p className="text-[11px] text-slate-500 max-w-md">
-              (Jika Bookmarks Bar belum muncul, tekan <b>Ctrl + Shift + B</b> di Chrome / Edge untuk menampilkannya).
-            </p>
+            <div className="text-[11px] text-slate-500 max-w-lg space-y-1">
+              <p>(Jika Bookmarks Bar belum muncul, tekan <b>Ctrl + Shift + B</b> di Chrome / Edge untuk menampilkannya).</p>
+              <p className="text-[10px] text-indigo-600 font-medium">
+                💡 <b>Cara Alternatif (Paling Pasti Berhasil):</b> Klik tombol di atas untuk salin kode &gt; Tekan <b>Ctrl + Shift + O</b> &gt; Klik titik 3 di kanan atas &gt; <i>Add new bookmark</i> &gt; Paste kode di kolom URL &gt; Simpan!
+              </p>
+            </div>
           </div>
 
           {/* Cara Pakai Bookmarklet */}

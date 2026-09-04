@@ -173,13 +173,21 @@ export const CHROME_EXTENSION_POPUP_JS = `document.addEventListener('DOMContentL
 
 // Function that runs directly inside the Instagram webpage tab
 async function inPageExtractor() {
-  var dialog = document.querySelector('div[role="dialog"]') || document.querySelector('div[aria-modal="true"]');
+  var dialog = document.querySelector('div[role="dialog"] div[style*="overflow"]')
+            || document.querySelector('div[role="dialog"] div[style*="overflow-y"]')
+            || document.querySelector('div[aria-modal="true"] div[style*="overflow"]')
+            || document.querySelector('div[role="dialog"]')
+            || document.querySelector('div[aria-modal="true"]');
+
   if (!dialog) {
     var likeLink = document.querySelector('a[href*="/liked_by/"]') || document.querySelector('a[href*="/likes/"]');
     if (likeLink) {
-      likeLink.click();
-      await new Promise(function(r){ setTimeout(r, 600); });
-      dialog = document.querySelector('div[role="dialog"]') || document.querySelector('div[aria-modal="true"]');
+      try { likeLink.click(); } catch(e) {}
+      await new Promise(function(r){ setTimeout(r, 800); });
+      dialog = document.querySelector('div[role="dialog"] div[style*="overflow"]')
+            || document.querySelector('div[role="dialog"] div[style*="overflow-y"]')
+            || document.querySelector('div[aria-modal="true"] div[style*="overflow"]')
+            || document.querySelector('div[role="dialog"]');
     }
   }
 
@@ -187,62 +195,53 @@ async function inPageExtractor() {
     return { error: 'MODAL_NOT_OPEN', usernames: [] };
   }
 
-  // Find scrollable container inside dialog
-  var scrollContainer = dialog;
-  var allDivs = [dialog].concat(Array.from(dialog.querySelectorAll('div, section, ul')));
-  for (var i = 0; i < allDivs.length; i++) {
-    var el = allDivs[i];
-    var style = window.getComputedStyle(el);
-    if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
-      scrollContainer = el;
-      break;
-    }
-  }
-
-  var reservedWords = {
-    'p':1,'reel':1,'reels':1,'stories':1,'explore':1,'direct':1,'accounts':1,'about':1,
-    'legal':1,'privacy':1,'terms':1,'help':1,'settings':1,'profile':1,'home':1,
-    'instagram':1,'following':1,'followers':1,'likes':1,'suka':1,'ikuti':1,'mengikuti':1,'liked_by':1,'tags':1
-  };
-
   var allUsernames = new Set();
   var lastHeight = 0;
   var unchangedCount = 0;
+  var step = 0;
 
-  for (var step = 0; step < 45; step++) {
-    var links = document.querySelectorAll('div[role="dialog"] a, div[aria-modal="true"] a, a[href^="/"]');
-    links.forEach(function(a) {
-      var h = a.getAttribute('href');
-      if (h && typeof h === 'string') {
-        var clean = h.replace(/https?:\\/\\/[^\\/]+/i, '').replace(/\\?.*$/, '').replace(/^\\/+/, '').replace(/\\/+$/, '').trim();
-        if (clean && !clean.includes('/') && clean.length >= 2 && clean.length <= 32 && !reservedWords[clean.toLowerCase()]) {
-          allUsernames.add(clean.toLowerCase());
-        }
-      }
-    });
+  while (unchangedCount < 5 && step < 60) {
+    var links = Array.from(document.querySelectorAll('div[role="dialog"] a, div[aria-modal="true"] a'))
+      .map(function(a) { return a.getAttribute('href'); })
+      .filter(function(h) {
+        return h && typeof h === 'string' && h.startsWith('/') 
+          && !h.includes('/explore/') 
+          && !h.includes('/direct/') 
+          && !h.includes('/stories/') 
+          && !h.includes('/reels/') 
+          && !h.includes('/p/');
+      })
+      .map(function(h) { return h.replaceAll('/', '').trim().toLowerCase(); })
+      .filter(function(u) { return u && u.length >= 2 && u.length <= 32; });
 
-    var spans = document.querySelectorAll('div[role="dialog"] span, div[aria-modal="true"] span');
-    spans.forEach(function(s) {
-      var txt = (s.innerText || '').trim();
-      if (/^[a-zA-Z0-9._]{3,30}$/.test(txt) && !reservedWords[txt.toLowerCase()]) {
-        allUsernames.add(txt.toLowerCase());
-      }
-    });
+    links.forEach(function(u) { allUsernames.add(u); });
 
-    scrollContainer.scrollTop += 750;
-    await new Promise(function(r) { setTimeout(r, 650); });
+    dialog.scrollTop += 500;
+    try {
+      dialog.dispatchEvent(new Event('scroll', { bubbles: true }));
+    } catch(e) {}
 
-    var newHeight = scrollContainer.scrollTop;
+    await new Promise(function(r) { setTimeout(r, 800); });
+
+    var newHeight = dialog.scrollTop;
     if (newHeight === lastHeight) {
       unchangedCount++;
-      if (unchangedCount >= 4) break;
     } else {
       unchangedCount = 0;
       lastHeight = newHeight;
     }
+    step++;
   }
 
-  return { usernames: Array.from(allUsernames) };
+  var list = Array.from(allUsernames);
+  var joined = list.join('\\n');
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(joined);
+    }
+  } catch(e) {}
+
+  return { usernames: list };
 }`;
 
 export const CHROME_EXTENSION_CONTENT_JS = `// Content script for IG Liker Exporter
@@ -251,9 +250,9 @@ console.log('IG Liker Exporter content script active.');`;
 // Ultra-robust bookmarklet:
 // 1. Completely FREE of '#' characters to prevent URL fragment truncation in browsers
 // 2. Visual floating mini HUD that ALWAYS opens on Instagram
-// 3. Auto-detects Likes popup or offers 1-click retry without re-clicking bookmark
+// 3. Targets div[role="dialog"] div[style*="overflow"] for guaranteed auto-scrolling
 // 4. Real-time counter and dual-clipboard copy
-export const BOOKMARKLET_CODE = `javascript:(function(){try{if(!location.hostname.includes('instagram.com')){alert('⚠️ Silakan buka postingan di Instagram Web (instagram.com) terlebih dahulu!');return;}var old=document.getElementById('ig-liker-exporter-hud');if(old){old.remove();}var hud=document.createElement('div');hud.id='ig-liker-exporter-hud';hud.style.cssText='position:fixed;top:20px;right:20px;z-index:999999999;width:340px;background:rgb(15,23,42);color:rgb(248,250,252);border-radius:14px;border:2px solid rgb(99,102,241);box-shadow:0 20px 45px rgba(0,0,0,0.8);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:16px;box-sizing:border-box;';hud.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgb(51,65,85);padding-bottom:10px;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;"><div style="background:rgb(79,70,229);color:rgb(255,255,255);width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;">⚡</div><div><div style="font-weight:bold;font-size:13px;color:rgb(255,255,255);">IG Liker Exporter</div><div style="font-size:10px;color:rgb(148,163,184);">Retail Engagement Monitor</div></div></div><button id="ig-close-hud" style="background:none;border:none;color:rgb(148,163,184);cursor:pointer;font-size:20px;line-height:1;padding:2px 6px;">&times;</button></div><div id="ig-status-text" style="font-size:12px;color:rgb(56,189,248);margin-bottom:10px;background:rgb(30,41,59);padding:8px 10px;border-radius:8px;border:1px solid rgb(51,65,85);line-height:1.4;">⏳ Memeriksa popup Like Instagram...</div><div id="ig-result-box" style="display:none;"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:bold;color:rgb(52,211,153);margin-bottom:6px;"><span id="ig-count-text">0 Username</span><span>Siap di-Paste</span></div><textarea id="ig-usernames-area" style="width:100%;height:100px;background:rgb(2,6,23);color:rgb(74,222,128);font-family:monospace;font-size:11px;padding:8px;border-radius:8px;border:1px solid rgb(51,65,85);box-sizing:border-box;resize:none;" readonly></textarea><div style="display:flex;gap:8px;margin-top:10px;"><button id="ig-btn-copy-hud" style="flex:1;background:rgb(5,150,105);color:rgb(255,255,255);border:none;border-radius:8px;padding:10px;font-weight:bold;font-size:12px;cursor:pointer;">📋 Salin ke Clipboard</button></div></div><div id="ig-loading-bar" style="height:4px;background:rgb(30,41,59);border-radius:2px;overflow:hidden;margin-top:8px;"><div id="ig-progress-inner" style="height:100%;background:rgb(99,102,241);width:20%;transition:width 0.3s;"></div></div><div id="ig-action-bar" style="margin-top:10px;display:none;"><button id="ig-retry-btn" style="width:100%;background:rgb(79,70,229);color:rgb(255,255,255);border:none;border-radius:8px;padding:8px;font-size:11px;font-weight:bold;cursor:pointer;">🔄 Mulai Ekstrak Lagi</button></div>';document.body.appendChild(hud);document.getElementById('ig-close-hud').onclick=function(){hud.remove();};var statusEl=document.getElementById('ig-status-text'),resultBox=document.getElementById('ig-result-box'),countText=document.getElementById('ig-count-text'),area=document.getElementById('ig-usernames-area'),btnCopy=document.getElementById('ig-btn-copy-hud'),progress=document.getElementById('ig-progress-inner'),actionBar=document.getElementById('ig-action-bar'),retryBtn=document.getElementById('ig-retry-btn');var reservedWords={'p':1,'reel':1,'reels':1,'stories':1,'explore':1,'direct':1,'accounts':1,'about':1,'legal':1,'privacy':1,'terms':1,'help':1,'settings':1,'profile':1,'home':1,'instagram':1,'following':1,'followers':1,'likes':1,'suka':1,'ikuti':1,'mengikuti':1,'liked_by':1,'tags':1};var usernamesSet=new Set(),lastHeight=0,unchangedCount=0,step=0;function copyTextFallback(text){try{var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.top='-9999px';document.body.appendChild(ta);ta.focus();ta.select();document.execCommand('copy');document.body.removeChild(ta);return true;}catch(e){return false;}}function findModalAndContainer(){var dialog=document.querySelector('div[role=\"dialog\"]')||document.querySelector('div[aria-modal=\"true\"]');if(!dialog){var likeLink=document.querySelector('a[href*=\"/liked_by/\"]')||document.querySelector('a[href*=\"/likes/\"]');if(likeLink){try{likeLink.click();}catch(e){}}return{dialog:null,container:null};}var all=[dialog].concat(Array.from(dialog.querySelectorAll('div, section, ul')));for(var i=0;i<all.length;i++){var el=all[i];var st=window.getComputedStyle(el);if((st.overflowY==='auto'||st.overflowY==='scroll')&&el.scrollHeight>el.clientHeight){return{dialog:dialog,container:el};}}var best=dialog,maxS=0;for(var j=0;j<all.length;j++){if(all[j].scrollHeight>all[j].clientHeight&&all[j].scrollHeight>maxS){maxS=all[j].scrollHeight;best=all[j];}}return{dialog:dialog,container:best};}function extractCurrent(){var links=document.querySelectorAll('div[role=\"dialog\"] a, div[aria-modal=\"true\"] a, a[href^=\"/\"]');links.forEach(function(a){var h=a.getAttribute('href');if(h&&typeof h==='string'){var clean=h.replace(/https?:\\/\\/[^\\/]+/i,'').replace(/\\?.*$/,'').replace(/^\\/+/,'').replace(/\\/+$/,'').trim();if(clean&&!clean.includes('/')&&clean.length>=2&&clean.length<=32&&!reservedWords[clean.toLowerCase()]){usernamesSet.add(clean.toLowerCase());}}});var spans=document.querySelectorAll('div[role=\"dialog\"] span, div[aria-modal=\"true\"] span');spans.forEach(function(s){var txt=(s.innerText||'').trim();if(/^[a-zA-Z0-9._]{3,30}$/.test(txt)&&!reservedWords[txt.toLowerCase()]){usernamesSet.add(txt.toLowerCase());}});}function finishExtraction(){progress.style.width='100%';var list=Array.from(usernamesSet);var text=list.join('\\n');if(list.length===0){statusEl.innerHTML='⚠️ <span style=\"color:rgb(248,113,113);font-weight:bold;\">Tidak ada username terdeteksi.</span><br><span style=\"font-size:10px;color:rgb(148,163,184);\">Pastikan modal daftar Suka/Likes Instagram sudah muncul di layar, lalu klik Mulai Ekstrak Lagi.</span>';actionBar.style.display='block';return;}statusEl.innerHTML='✅ <b style=\"color:rgb(74,222,128);\">Selesai!</b> Ditemukan <b>'+list.length+'</b> username likers.';resultBox.style.display='block';actionBar.style.display='block';countText.innerText=list.length+' Username Terdeteksi';area.value=text;copyTextFallback(text);if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).catch(function(){});}btnCopy.onclick=function(){copyTextFallback(text);if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).catch(function(){});}btnCopy.innerText='✅ Berhasil Disalin!';setTimeout(function(){btnCopy.innerText='📋 Salin ke Clipboard';},2000);};}function startExtraction(container){statusEl.innerHTML='🚀 <span style=\"color:rgb(56,189,248);\">Sedang auto-scroll & mengumpulkan username likers...</span>';function doScrollLoop(){extractCurrent();step++;var percent=Math.min(95,step*3);progress.style.width=percent+'%';statusEl.innerHTML='🚀 Mengumpulkan... (<b>'+usernamesSet.size+'</b> username)';container.scrollTop+=750;setTimeout(function(){var newHeight=container.scrollTop;if(newHeight===lastHeight){unchangedCount++;}else{unchangedCount=0;lastHeight=newHeight;}if(unchangedCount>=4||step>=45){finishExtraction();}else{doScrollLoop();}},650);}doScrollLoop();}retryBtn.onclick=function(){usernamesSet.clear();step=0;unchangedCount=0;lastHeight=0;resultBox.style.display='none';actionBar.style.display='none';progress.style.width='10%';run();};function run(){var found=findModalAndContainer();if(!found.container){statusEl.innerHTML='⚠️ <span style=\"color:rgb(248,113,113);font-weight:bold;\">Popup Likes belum terbuka!</span><br><span style=\"font-size:11px;color:rgb(148,163,184);display:block;margin-top:4px;\">Klik tulisan jumlah <b>Likes/Suka</b> di postingan IG, lalu klik tombol di bawah ini:</span>';actionBar.style.display='block';return;}startExtraction(found.container);}run();}catch(err){alert('Kesalahan bookmarklet: '+err.message);}})();`;
+export const BOOKMARKLET_CODE = `javascript:(function(){try{if(!location.hostname.includes('instagram.com')){alert('⚠️ Silakan buka postingan di Instagram Web (instagram.com) terlebih dahulu!');return;}var old=document.getElementById('ig-liker-exporter-hud');if(old){old.remove();}var hud=document.createElement('div');hud.id='ig-liker-exporter-hud';hud.style.cssText='position:fixed;top:20px;right:20px;z-index:999999999;width:340px;background:rgb(15,23,42);color:rgb(248,250,252);border-radius:14px;border:2px solid rgb(99,102,241);box-shadow:0 20px 45px rgba(0,0,0,0.8);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:16px;box-sizing:border-box;';hud.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgb(51,65,85);padding-bottom:10px;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;"><div style="background:rgb(79,70,229);color:rgb(255,255,255);width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;">⚡</div><div><div style="font-weight:bold;font-size:13px;color:rgb(255,255,255);">IG Liker Exporter</div><div style="font-size:10px;color:rgb(148,163,184);">Retail Engagement Monitor</div></div></div><button id="ig-close-hud" style="background:none;border:none;color:rgb(148,163,184);cursor:pointer;font-size:20px;line-height:1;padding:2px 6px;">&times;</button></div><div id="ig-status-text" style="font-size:12px;color:rgb(56,189,248);margin-bottom:10px;background:rgb(30,41,59);padding:8px 10px;border-radius:8px;border:1px solid rgb(51,65,85);line-height:1.4;">⏳ Memeriksa popup Like Instagram...</div><div id="ig-result-box" style="display:none;"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:bold;color:rgb(52,211,153);margin-bottom:6px;"><span id="ig-count-text">0 Username</span><span>Siap di-Paste</span></div><textarea id="ig-usernames-area" style="width:100%;height:100px;background:rgb(2,6,23);color:rgb(74,222,128);font-family:monospace;font-size:11px;padding:8px;border-radius:8px;border:1px solid rgb(51,65,85);box-sizing:border-box;resize:none;" readonly></textarea><div style="display:flex;gap:8px;margin-top:10px;"><button id="ig-btn-copy-hud" style="flex:1;background:rgb(5,150,105);color:rgb(255,255,255);border:none;border-radius:8px;padding:10px;font-weight:bold;font-size:12px;cursor:pointer;">📋 Salin ke Clipboard</button></div></div><div id="ig-loading-bar" style="height:4px;background:rgb(30,41,59);border-radius:2px;overflow:hidden;margin-top:8px;"><div id="ig-progress-inner" style="height:100%;background:rgb(99,102,241);width:20%;transition:width 0.3s;"></div></div><div id="ig-action-bar" style="margin-top:10px;display:none;"><button id="ig-retry-btn" style="width:100%;background:rgb(79,70,229);color:rgb(255,255,255);border:none;border-radius:8px;padding:8px;font-size:11px;font-weight:bold;cursor:pointer;">🔄 Mulai Ekstrak Lagi</button></div>';document.body.appendChild(hud);document.getElementById('ig-close-hud').onclick=function(){hud.remove();};var statusEl=document.getElementById('ig-status-text'),resultBox=document.getElementById('ig-result-box'),countText=document.getElementById('ig-count-text'),area=document.getElementById('ig-usernames-area'),btnCopy=document.getElementById('ig-btn-copy-hud'),progress=document.getElementById('ig-progress-inner'),actionBar=document.getElementById('ig-action-bar'),retryBtn=document.getElementById('ig-retry-btn');var usernamesSet=new Set(),lastHeight=0,unchangedCount=0,step=0;function copyTextFallback(text){try{var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.top='-9999px';document.body.appendChild(ta);ta.focus();ta.select();document.execCommand('copy');document.body.removeChild(ta);return true;}catch(e){return false;}}function findContainer(){var dialog=document.querySelector('div[role=\"dialog\"] div[style*=\"overflow\"]')||document.querySelector('div[role=\"dialog\"] div[style*=\"overflow-y\"]')||document.querySelector('div[aria-modal=\"true\"] div[style*=\"overflow\"]');if(!dialog){dialog=document.querySelector('div[role=\"dialog\"]')||document.querySelector('div[aria-modal=\"true\"]');}if(!dialog){var likeLink=document.querySelector('a[href*=\"/liked_by/\"]')||document.querySelector('a[href*=\"/likes/\"]');if(likeLink){try{likeLink.click();}catch(e){}}return null;}return dialog;}function extractCurrent(){var links=Array.from(document.querySelectorAll('div[role=\"dialog\"] a, div[aria-modal=\"true\"] a'));links.forEach(function(a){var h=a.getAttribute('href');if(h&&typeof h==='string'&&h.startsWith('/')&&!h.includes('/explore/')&&!h.includes('/direct/')&&!h.includes('/stories/')&&!h.includes('/reels/')&&!h.includes('/p/')){var clean=h.replaceAll('/','').trim().toLowerCase();if(clean&&clean.length>=2&&clean.length<=32){usernamesSet.add(clean);}}});}function finishExtraction(){progress.style.width='100%';var list=Array.from(usernamesSet);var text=list.join('\\n');if(list.length===0){statusEl.innerHTML='⚠️ <span style=\"color:rgb(248,113,113);font-weight:bold;\">Tidak ada username terdeteksi.</span><br><span style=\"font-size:10px;color:rgb(148,163,184);\">Pastikan modal daftar Suka/Likes Instagram sudah muncul di layar, lalu klik Mulai Ekstrak Lagi.</span>';actionBar.style.display='block';return;}statusEl.innerHTML='✅ <b style=\"color:rgb(74,222,128);\">Selesai!</b> Ditemukan <b>'+list.length+'</b> username likers.';resultBox.style.display='block';actionBar.style.display='block';countText.innerText=list.length+' Username Terdeteksi';area.value=text;copyTextFallback(text);if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).catch(function(){});}btnCopy.onclick=function(){copyTextFallback(text);if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).catch(function(){});}btnCopy.innerText='✅ Berhasil Disalin!';setTimeout(function(){btnCopy.innerText='📋 Salin ke Clipboard';},2000);};}function startExtraction(container){statusEl.innerHTML='🚀 <span style=\"color:rgb(56,189,248);\">Sedang auto-scroll & mengumpulkan username likers...</span>';function doScrollLoop(){extractCurrent();step++;var percent=Math.min(95,Math.floor((step/35)*100));progress.style.width=percent+'%';statusEl.innerHTML='🚀 Mengumpulkan... (<b>'+usernamesSet.size+'</b> username)';container.scrollTop+=500;try{container.dispatchEvent(new Event('scroll',{bubbles:true}));}catch(e){}setTimeout(function(){var newHeight=container.scrollTop;if(newHeight===lastHeight){unchangedCount++;}else{unchangedCount=0;lastHeight=newHeight;}if(unchangedCount>=5||step>=60){finishExtraction();}else{doScrollLoop();}},800);}doScrollLoop();}retryBtn.onclick=function(){usernamesSet.clear();step=0;unchangedCount=0;lastHeight=0;resultBox.style.display='none';actionBar.style.display='none';progress.style.width='10%';run();};function run(){var c=findContainer();if(!c){statusEl.innerHTML='⚠️ <span style=\"color:rgb(248,113,113);font-weight:bold;\">Popup Likes belum terbuka!</span><br><span style=\"font-size:11px;color:rgb(148,163,184);display:block;margin-top:4px;\">Klik tulisan jumlah <b>Likes/Suka</b> di postingan IG, lalu klik tombol di bawah ini:</span>';actionBar.style.display='block';return;}startExtraction(c);}run();}catch(err){alert('Kesalahan bookmarklet: '+err.message);}})();`;
 
 export const CHROME_EXTENSION_README = `# IG Liker Exporter - Chrome Extension
 
