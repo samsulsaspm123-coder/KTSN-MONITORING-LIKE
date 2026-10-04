@@ -308,6 +308,10 @@ export function ExtensionManager({ compactMode = false, onNavigateToRekap }: Ext
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                   <span><b>1-Klik Salin ke Web App:</b> Hasil langsung disalin ke Clipboard dan siap dianalisis di Rekapitulasi WA.</span>
                 </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-fuchsia-600 shrink-0 mt-0.5" />
+                  <span><b>📸 Screenshot Panjang Otomatis (PNG):</b> Menghasilkan gambar screenshot panjang resolusi tinggi dari modal Likes Instagram untuk bukti laporan ritel tanpa perlu screen recording iPhone!</span>
+                </li>
               </ul>
             </div>
 

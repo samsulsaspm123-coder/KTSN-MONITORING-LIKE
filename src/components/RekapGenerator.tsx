@@ -32,13 +32,15 @@ import {
   Download,
   QrCode,
   Smartphone,
-  Trash2
+  Trash2,
+  Camera
 } from 'lucide-react';
 import { Employee, LikersProcessResult } from '../types';
 import { processLikersData, formatDateIndo, generateWhatsAppLink, extractUsernamesFromRawText, compareDivisions } from '../utils/likersParser';
 import { INSTAGRAM_CONSOLE_SCRIPT } from '../data/gasCodeSnippets';
 import { BOOKMARKLET_CODE, downloadExtensionZip } from '../data/extensionFiles';
 import { RecapBarcodeModal } from './RecapBarcodeModal';
+import { LongScreenshotModal } from './LongScreenshotModal';
 
 const LOCAL_STORAGE_KEY_REKAP_URL = 'likemonitor_rekap_url_post_v1';
 const LOCAL_STORAGE_KEY_REKAP_LIKERS = 'likemonitor_rekap_raw_likers_v1';
@@ -133,6 +135,7 @@ export function RekapGenerator({
   const [isNetlifyGuideOpen, setIsNetlifyGuideOpen] = useState<boolean>(false);
   const [isExtensionModalOpen, setIsExtensionModalOpen] = useState<boolean>(false);
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState<boolean>(false);
+  const [isScreenshotModalOpen, setIsScreenshotModalOpen] = useState<boolean>(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
 
   // Auto-sync form inputs to localStorage so data NEVER vanishes when minimized or refreshed
@@ -500,7 +503,16 @@ export function RekapGenerator({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsScreenshotModalOpen(true)}
+            className="px-3.5 py-2 bg-gradient-to-r from-fuchsia-600 via-rose-600 to-indigo-600 hover:from-fuchsia-700 hover:to-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            title="Buat screenshot panjang otomatis mirip 100% modal Likes Instagram tanpa screen recording iPhone"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span>Screenshot Panjang IG</span>
+          </button>
           {onOpenSosmedReport && (
             <button
               onClick={onOpenSosmedReport}
@@ -753,6 +765,16 @@ export function RekapGenerator({
                       <span>Hapus Otomatis (Link & Likers)</span>
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => setIsScreenshotModalOpen(true)}
+                    className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-gradient-to-r from-fuchsia-50 to-pink-50 hover:from-fuchsia-100 hover:to-pink-100 text-fuchsia-800 border border-fuchsia-200 transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                    title="Buka generator screenshot panjang bukti like Instagram (100% mirip modal IG asli)"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-fuchsia-600" />
+                    <span>Screenshot Panjang</span>
+                  </button>
 
                   <button
                     type="button"
@@ -1056,6 +1078,21 @@ export function RekapGenerator({
                 </button>
 
                 <button
+                  type="button"
+                  onClick={() => setIsScreenshotModalOpen(true)}
+                  disabled={!result}
+                  className={`px-2.5 py-1.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    result
+                      ? 'bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-300 border border-fuchsia-500/40 shadow-xs'
+                      : 'bg-white/5 text-slate-500 cursor-not-allowed'
+                  }`}
+                  title="Buat dan unduh screenshot panjang bukti like Instagram (100% mirip modal IG asli)"
+                >
+                  <Camera className="w-3 h-3 text-fuchsia-400" />
+                  <span>SCREENSHOT</span>
+                </button>
+
+                <button
                   onClick={handleCopy}
                   disabled={!result}
                   className={`px-3 py-1.5 rounded text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
@@ -1139,12 +1176,12 @@ export function RekapGenerator({
             </div>
 
             {/* Quick action buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleCopy}
                 disabled={!result}
-                className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   copied
                     ? 'bg-emerald-600 text-white'
                     : result
@@ -1160,7 +1197,7 @@ export function RekapGenerator({
                 href={result ? generateWhatsAppLink(result.waTextOutput) : '#'}
                 target="_blank"
                 rel="noreferrer"
-                className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                   result
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
                     : 'bg-slate-800/40 text-slate-500 pointer-events-none cursor-not-allowed'
@@ -1174,7 +1211,7 @@ export function RekapGenerator({
                 type="button"
                 onClick={() => setIsBarcodeModalOpen(true)}
                 disabled={!result}
-                className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   result
                     ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md shadow-amber-500/20 active:scale-[0.98]'
                     : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
@@ -1182,7 +1219,22 @@ export function RekapGenerator({
                 title="Tampilkan barcode QR untuk discan langsung dari kamera HP Anda"
               >
                 <QrCode className="w-3.5 h-3.5" />
-                <span>Scan Barcode HP</span>
+                <span>Barcode HP</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsScreenshotModalOpen(true)}
+                disabled={!result}
+                className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  result
+                    ? 'bg-gradient-to-r from-fuchsia-600 to-pink-600 hover:from-fuchsia-700 hover:to-pink-700 text-white shadow-md shadow-fuchsia-500/20 active:scale-[0.98]'
+                    : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
+                }`}
+                title="Buat dan download screenshot panjang bukti like Instagram (100% mirip modal IG asli)"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>Screenshot</span>
               </button>
             </div>
 
@@ -2305,6 +2357,16 @@ export function RekapGenerator({
         isOpen={isBarcodeModalOpen}
         onClose={() => setIsBarcodeModalOpen(false)}
         result={result}
+      />
+
+      {/* Long Screenshot Modal */}
+      <LongScreenshotModal
+        isOpen={isScreenshotModalOpen}
+        onClose={() => setIsScreenshotModalOpen(false)}
+        result={result}
+        employees={employees}
+        storeCode={storeCode || 'KTSN'}
+        urlPost={urlPost}
       />
 
     </div>
