@@ -31,13 +31,19 @@ import {
   RefreshCw,
   Download,
   QrCode,
-  Smartphone
+  Smartphone,
+  Trash2
 } from 'lucide-react';
 import { Employee, LikersProcessResult } from '../types';
 import { processLikersData, formatDateIndo, generateWhatsAppLink, extractUsernamesFromRawText, compareDivisions } from '../utils/likersParser';
 import { INSTAGRAM_CONSOLE_SCRIPT } from '../data/gasCodeSnippets';
 import { BOOKMARKLET_CODE, downloadExtensionZip } from '../data/extensionFiles';
 import { RecapBarcodeModal } from './RecapBarcodeModal';
+
+const LOCAL_STORAGE_KEY_REKAP_URL = 'likemonitor_rekap_url_post_v1';
+const LOCAL_STORAGE_KEY_REKAP_LIKERS = 'likemonitor_rekap_raw_likers_v1';
+const LOCAL_STORAGE_KEY_REKAP_AUTO_DATE = 'likemonitor_rekap_auto_date_v1';
+const LOCAL_STORAGE_KEY_REKAP_CUSTOM_DATE = 'likemonitor_rekap_custom_date_v1';
 
 interface RekapGeneratorProps {
   employees: Employee[];
@@ -60,13 +66,65 @@ export function RekapGenerator({
   onOpenEmployeeManager,
   onOpenSosmedReport,
 }: RekapGeneratorProps) {
-  // Form State
-  const [urlPost, setUrlPost] = useState<string>('');
-  const [rawLikersText, setRawLikersText] = useState<string>('');
-  const [isAutoDate, setIsAutoDate] = useState<boolean>(true);
-  const [customDate, setCustomDate] = useState<string>(formatDateIndo(new Date()));
+  // Form State with LocalStorage Persistence (Aman & Tidak Hilang saat di-minimize atau berpindah tab)
+  const [urlPost, setUrlPost] = useState<string>(() => {
+    try {
+      return localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_URL) || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [rawLikersText, setRawLikersText] = useState<string>(() => {
+    try {
+      return localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_LIKERS) || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [isAutoDate, setIsAutoDate] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_AUTO_DATE);
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const [customDate, setCustomDate] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_CUSTOM_DATE);
+      return saved || formatDateIndo(new Date());
+    } catch {
+      return formatDateIndo(new Date());
+    }
+  });
+
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [result, setResult] = useState<LikersProcessResult | null>(null);
+
+  // Restore initial processed result if rawLikersText exists in storage
+  const [result, setResult] = useState<LikersProcessResult | null>(() => {
+    try {
+      const savedLikers = localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_LIKERS);
+      if (savedLikers && savedLikers.trim()) {
+        const savedUrl = localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_URL) || '';
+        const savedCustomDate = localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_CUSTOM_DATE) || formatDateIndo(new Date());
+        return processLikersData({
+          urlPost: savedUrl.trim(),
+          rawLikersText: savedLikers,
+          employees,
+          customDate: savedCustomDate,
+          storeCode: storeCode || 'KTSN',
+        });
+      }
+    } catch {
+      // Fallback
+    }
+    return null;
+  });
+
+  const [clearFeedback, setClearFeedback] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedScript, setCopiedScript] = useState<boolean>(false);
   const [copiedBookmarklet, setCopiedBookmarklet] = useState<boolean>(false);
@@ -76,6 +134,62 @@ export function RekapGenerator({
   const [isExtensionModalOpen, setIsExtensionModalOpen] = useState<boolean>(false);
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState<boolean>(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
+
+  // Auto-sync form inputs to localStorage so data NEVER vanishes when minimized or refreshed
+  useEffect(() => {
+    try {
+      if (urlPost) {
+        localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_URL, urlPost);
+      } else {
+        localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_URL);
+      }
+    } catch (e) {
+      console.warn('Failed to save urlPost to localStorage', e);
+    }
+  }, [urlPost]);
+
+  useEffect(() => {
+    try {
+      if (rawLikersText) {
+        localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_LIKERS, rawLikersText);
+      } else {
+        localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_LIKERS);
+      }
+    } catch (e) {
+      console.warn('Failed to save rawLikersText to localStorage', e);
+    }
+  }, [rawLikersText]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_AUTO_DATE, String(isAutoDate));
+    } catch (e) {
+      console.warn('Failed to save isAutoDate to localStorage', e);
+    }
+  }, [isAutoDate]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_CUSTOM_DATE, customDate);
+    } catch (e) {
+      console.warn('Failed to save customDate to localStorage', e);
+    }
+  }, [customDate]);
+
+  // Keep result synced if employees list updates while raw likers are present
+  useEffect(() => {
+    if (rawLikersText.trim() && !result) {
+      const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
+      const res = processLikersData({
+        urlPost: urlPost.trim(),
+        rawLikersText,
+        employees,
+        customDate: effectiveDate,
+        storeCode: storeCode || 'KTSN',
+      });
+      setResult(res);
+    }
+  }, [employees]);
   
   // Breakdown Table Filter State
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -235,12 +349,24 @@ export function RekapGenerator({
     }, 100);
   };
 
-  // Clear inputs
-  const handleClear = () => {
+  // 1-Click Auto Clear: Menghapus link IG dan seluruh username likers sebelumnya sekaligus & membersihkan storage
+  const handleAutoClear = () => {
     setUrlPost('');
     setRawLikersText('');
     setResult(null);
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_URL);
+      localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_LIKERS);
+    } catch (e) {
+      console.warn('Failed to clear rekap from localStorage', e);
+    }
+    setClearFeedback(true);
+    setTimeout(() => {
+      setClearFeedback(false);
+    }, 2800);
   };
+
+  const handleClear = handleAutoClear;
 
   // Paste from clipboard directly
   const handlePasteFromClipboard = async () => {
@@ -596,17 +722,38 @@ export function RekapGenerator({
             {/* Step 2: Daftar Likers Instagram (Textarea) */}
             <div>
               <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block flex items-center gap-1.5" htmlFor="likers-textarea">
-                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">2</span>
-                  <span>Username Likers List</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5" htmlFor="likers-textarea">
+                    <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">2</span>
+                    <span>Username Likers List</span>
+                  </label>
                   {detectedUsernames.length > 0 && (
                     <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
                       {detectedUsernames.length} User Terdeteksi
                     </span>
                   )}
-                </label>
+                  {(rawLikersText || urlPost) && (
+                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" title="Data tersimpan di browser secara otomatis sehingga aman saat diminimize atau berpindah tab">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>Aman Saat Minimize</span>
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* Tombol Hapus Otomatis (1-Klik Bersihkan Link & Likers Sebelumnya) */}
+                  {(rawLikersText || urlPost) && (
+                    <button
+                      type="button"
+                      onClick={handleAutoClear}
+                      className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                      title="Sekali klik untuk menghapus link Instagram dan seluruh daftar username likers sebelumnya"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Hapus Otomatis (Link & Likers)</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={handlePasteFromClipboard}
@@ -673,17 +820,6 @@ export function RekapGenerator({
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                     <span>Demo LIKE DONE</span>
                   </button>
-
-                  {rawLikersText && (
-                    <button
-                      type="button"
-                      onClick={handleClear}
-                      className="text-[11px] text-slate-400 hover:text-rose-600 transition-colors cursor-pointer px-1"
-                      title="Hapus input"
-                    >
-                      Hapus
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -692,9 +828,17 @@ export function RekapGenerator({
                 rows={6}
                 value={rawLikersText}
                 onChange={(e) => setRawLikersText(e.target.value)}
-                placeholder="Tempel (Ctrl + V) hasil copy dari Console F12 Instagram di sini..."
+                placeholder="Tempel (Ctrl + V) hasil copy dari Bookmarklet atau Console F12 Instagram di sini..."
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm resize-none font-mono transition-all text-slate-800 custom-scrollbar leading-relaxed"
               />
+
+              {/* Notification Banner when Auto Clear is clicked */}
+              {clearFeedback && (
+                <div className="mt-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 flex items-center gap-2 animate-in fade-in duration-200 shadow-xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Link postingan dan seluruh daftar username likers sebelumnya berhasil dihapus! Siap untuk postingan berikutnya.</span>
+                </div>
+              )}
 
               {/* Informational Workflow Callout when Empty */}
               {!rawLikersText && (
@@ -707,16 +851,14 @@ export function RekapGenerator({
                       </p>
                       <ol className="list-decimal pl-4 space-y-1 text-slate-700 text-[11px]">
                         <li>Buka post di IG Web &gt; Klik jumlah <strong>"Likes/Suka"</strong> agar modal daftar orang yang like muncul.</li>
-                        <li>Tekan <strong>F12</strong> di keyboard &gt; pilih tab <strong>Console</strong>.</li>
-                        <li>
-                          Klik tombol <strong className="text-indigo-700">"Salin Script F12"</strong> di atas, paste di Console IG lalu tekan <strong>Enter</strong>.
-                        </li>
-                        <li>Daftar likers langsung otomatis tersalin. Kembali ke sini lalu tekan <strong>Ctrl + V</strong> (Paste)!</li>
+                        <li>Klik <strong>Bookmarklet</strong> di browser atau tekan <strong>F12</strong> (Console) &gt; jalankan script likers.</li>
+                        <li>Daftar likers langsung otomatis tersalin. Kembali ke sini lalu tekan <strong>Ctrl + V</strong> (atau tombol Tempel dari Clipboard)!</li>
+                        <li><strong className="text-emerald-700">Data otomatis tersimpan di browser</strong>, jadi aman dan tidak akan hilang saat aplikasi di-minimize.</li>
                       </ol>
                     </div>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-indigo-100/60 text-[11px]">
-                    <span className="text-slate-500">Kenapa perlu F12? Karena Instagram membatasi akses likers di balik login browser.</span>
+                    <span className="text-slate-500">Hasil tempel akan tersimpan otomatis dan dapat dihapus dalam sekali klik dengan tombol Hapus Otomatis.</span>
                     <button
                       type="button"
                       onClick={() => setIsQuickGuideOpen(true)}
@@ -731,7 +873,7 @@ export function RekapGenerator({
 
               {rawLikersText && (
                 <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 mt-1.5 gap-2">
-                  <span>✅ Format didukung: @username, baris baru, koma, spasi, atau output console.</span>
+                  <span>✅ Format didukung: @username, baris baru, koma, spasi, atau output console. Data tersimpan otomatis.</span>
                   <button
                     type="button"
                     onClick={() => setIsQuickGuideOpen(true)}
@@ -744,32 +886,46 @@ export function RekapGenerator({
             </div>
 
             {/* Step 3: Process Action Button */}
-            <div className="space-y-1.5 pt-1">
-              <button
-                id="btn-process-rekap"
-                type="button"
-                onClick={handleProcess}
-                disabled={isProcessing}
-                className={`w-full font-bold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
-                  isProcessing
-                    ? 'bg-slate-300 text-slate-500 shadow-none cursor-not-allowed'
-                    : !rawLikersText.trim()
-                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100 active:scale-[0.99]'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 active:scale-[0.99]'
-                }`}
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Memproses Data Likers...</span>
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    <span>Langkah 3: Proses & Buat Rekap WA</span>
-                  </>
+            <div className="space-y-2 pt-1">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  id="btn-process-rekap"
+                  type="button"
+                  onClick={handleProcess}
+                  disabled={isProcessing}
+                  className={`flex-1 font-bold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
+                    isProcessing
+                      ? 'bg-slate-300 text-slate-500 shadow-none cursor-not-allowed'
+                      : !rawLikersText.trim()
+                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100 active:scale-[0.99]'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 active:scale-[0.99]'
+                  }`}
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Memproses Data Likers...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>Langkah 3: Proses & Buat Rekap WA</span>
+                    </>
+                  )}
+                </button>
+
+                {(rawLikersText || urlPost) && (
+                  <button
+                    type="button"
+                    onClick={handleAutoClear}
+                    className="sm:w-auto px-4 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-[0.98]"
+                    title="Sekali klik untuk menghapus link Instagram dan seluruh daftar username likers sebelumnya"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-600" />
+                    <span className="whitespace-nowrap">Hapus Otomatis</span>
+                  </button>
                 )}
-              </button>
+              </div>
               {!rawLikersText.trim() && (
                 <p className="text-center text-[11px] text-slate-400">
                   * Isi kotak username likers di atas atau klik <strong>"Demo KTSN"</strong> untuk mencoba langsung.
@@ -872,6 +1028,18 @@ export function RekapGenerator({
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
+                {(result || urlPost || rawLikersText) && (
+                  <button
+                    type="button"
+                    onClick={handleAutoClear}
+                    className="px-2.5 py-1.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 shadow-xs active:scale-95"
+                    title="Sekali klik untuk menghapus link & username untuk rekap berikutnya"
+                  >
+                    <Trash2 className="w-3 h-3 text-rose-400" />
+                    <span>HAPUS</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => setIsBarcodeModalOpen(true)}
@@ -1017,6 +1185,21 @@ export function RekapGenerator({
                 <span>Scan Barcode HP</span>
               </button>
             </div>
+
+            {/* Quick 1-Click Clear / Reset for Next Post */}
+            {result && (
+              <div>
+                <button
+                  type="button"
+                  onClick={handleAutoClear}
+                  className="w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-slate-800/80 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700/60 hover:border-rose-500/30 shadow-xs"
+                  title="Hapus data rekap ini dan bersihkan link & username untuk postingan berikutnya"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Selesai & Hapus Otomatis (Siap Posting Baru)</span>
+                </button>
+              </div>
+            )}
 
             {/* Quick Helper Banner: WA Laptop Susah / Lemot Buka */}
             {result && (
