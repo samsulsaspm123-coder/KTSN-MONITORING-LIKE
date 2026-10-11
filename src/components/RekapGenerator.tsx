@@ -517,11 +517,11 @@ export function RekapGenerator({
             <button
               onClick={onOpenSosmedReport}
               className="px-3.5 py-2 bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-700 hover:to-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-              title="Buka pembuat laporan posting sosmed harian (IG, FB, TikTok)"
+              title="Buka menu Recap Konten Harian (Talent, Status Produksi & Status Upload)"
             >
               <Instagram className="w-3.5 h-3.5" />
-              <span>Laporan Posting Sosmed</span>
-              <span className="text-[9px] bg-white/25 px-1 py-0.2 rounded font-mono">7 Post</span>
+              <span>Recap Konten</span>
+              <span className="text-[9px] bg-white/25 px-1 py-0.2 rounded font-mono">Harian</span>
             </button>
           )}
           <button

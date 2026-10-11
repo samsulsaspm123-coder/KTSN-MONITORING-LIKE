@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { RekapGenerator } from './components/RekapGenerator';
 import { DailyDesignGenerator } from './components/DailyDesignGenerator';
-import { SosmedReportManager } from './components/SosmedReportManager';
+import { RecapKontenManager } from './components/RecapKontenManager';
 import { EmployeeManager } from './components/EmployeeManager';
 import { GasDeployGuide } from './components/GasDeployGuide';
 import { ExtensionManager } from './components/ExtensionManager';
@@ -26,7 +26,8 @@ import {
   Minimize2,
   Maximize2,
   Moon,
-  Sun
+  Sun,
+  Film
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY_EMPLOYEES = 'likemonitor_employees_v1';
@@ -298,9 +299,9 @@ export default function App() {
       color: 'text-purple-600 bg-purple-100 dark:bg-purple-950/60 dark:text-purple-300',
     },
     sosmed: {
-      title: 'Laporan Posting Sosmed Harian (7 Post)',
-      subtitle: 'Teks Format WA + Link Postingan + Lampiran Foto Screenshot',
-      icon: Share2,
+      title: 'Recap Konten Harian (Talent, Status Produksi & Post)',
+      subtitle: 'Tahap VO, Tinggal Edit, Done & Status Post • Data Permanen Tersimpan Setiap Hari',
+      icon: Film,
       color: 'text-pink-600 bg-pink-100 dark:bg-pink-950/60 dark:text-pink-300',
     },
     karyawan: {
@@ -523,11 +524,12 @@ export default function App() {
                 />
               )}
 
-              {/* TAB: SOSMED REPORT GENERATOR (NEW MULTI-PLATFORM WHATSAPP REPORT BUILDER) */}
+              {/* TAB: RECAP KONTEN HARIAN (PERMANENT STORAGE, 1-CLICK STAGE & POST STATUS) */}
               {activeTab === 'sosmed' && (
-                <SosmedReportManager
+                <RecapKontenManager
                   storeCode={storeCode}
                   compactMode={compactMode}
+                  employees={employees}
                 />
               )}
 

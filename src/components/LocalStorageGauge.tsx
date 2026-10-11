@@ -36,8 +36,9 @@ export function LocalStorageGauge() {
       const parsedItems: StorageItem[] = itemList.map((item) => {
         let label = item.key;
         if (item.key.includes('employee')) label = 'Data 151 Karyawan';
+        else if (item.key.includes('recap_konten')) label = 'Recap Konten Harian (Talent & Status)';
         else if (item.key.includes('rekap')) label = 'Draft Rekap Like (URL & Likers)';
-        else if (item.key.includes('social') || item.key.includes('sosmed')) label = 'Laporan 7 Sosmed';
+        else if (item.key.includes('social') || item.key.includes('sosmed')) label = 'Data Konten Sosmed';
         else if (item.key.includes('task') || item.key.includes('checklist')) label = 'Planning & Checklist';
         else if (item.key.includes('theme')) label = 'Pengaturan Tema';
         else if (item.key.includes('font')) label = 'Pengaturan Font';

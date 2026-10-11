@@ -12,7 +12,8 @@ import {
   FileCode2,
   Puzzle,
   Flame,
-  CheckCircle2
+  CheckCircle2,
+  Film
 } from 'lucide-react';
 
 export type ActiveTab = 'rekap' | 'desain' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
@@ -52,15 +53,15 @@ export function Navbar({
     },
     {
       id: 'sosmed' as ActiveTab,
-      label: 'Laporan Sosmed',
-      shortLabel: 'Laporan Sosmed',
-      icon: Share2,
+      label: 'Recap Konten',
+      shortLabel: 'Recap Konten',
+      icon: Film,
       color: 'pink',
       activeClass: 'bg-gradient-to-r from-pink-600 via-rose-600 to-indigo-600 text-white shadow-pink-600/30 shadow-md ring-2 ring-pink-400/40',
       inactiveClass: 'text-pink-900 bg-pink-50/80 hover:bg-pink-100 border border-pink-200',
       iconColor: 'text-pink-600',
-      badge: '7 POST',
-      badgeClass: 'bg-pink-200 text-pink-900 font-black animate-pulse',
+      badge: 'KONTEN',
+      badgeClass: 'bg-pink-200 text-pink-900 font-black',
     },
     {
       id: 'karyawan' as ActiveTab,

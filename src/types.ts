@@ -105,5 +105,35 @@ export interface SosmedPostItem {
   order: number;
 }
 
+// ==========================================
+// RECAP KONTEN TYPES (Manajemen Konten Harian)
+// ==========================================
+export type ContentProductionStatus =
+  | 'Tinggal VO'
+  | 'Belum/Tinggal Edit'
+  | 'Done'
+  | 'Take Video / Footage'
+  | 'Scripting / Naskah'
+  | 'Siap Post'
+  | string;
+
+export type ContentUploadStatus =
+  | 'Sudah Upload'
+  | 'Belum Upload';
+
+export interface RecapKontenItem {
+  id: string;
+  talent: string; // e.g. "Amelia Admin", "All Team"
+  jenisKonten: string; // e.g. "Konten Edukasi", "Review Produk", "Promo / Diskon"
+  judulKonten: string; // e.g. "Sepeda Listrik Goda Sunray"
+  statusProduksi: ContentProductionStatus; // "Tinggal VO", "Belum/Tinggal Edit", "Done"
+  statusPost: ContentUploadStatus; // "Sudah Upload" | "Belum Upload"
+  tanggal?: string; // "YYYY-MM-DD"
+  linkPost?: string; // Link postingan Instagram / TikTok dsb
+  catatan?: string; // Catatan tambahan
+  createdAt: number;
+  updatedAt: number;
+}
+
 
 

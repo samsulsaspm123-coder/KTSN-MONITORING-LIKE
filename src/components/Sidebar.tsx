@@ -13,7 +13,8 @@ import {
   X,
   Palette,
   Moon,
-  Sun
+  Sun,
+  Film
 } from 'lucide-react';
 import { ThemeMode } from '../types';
 import { AppLogo } from './AppLogo';
@@ -76,14 +77,14 @@ export function Sidebar({
     },
     {
       id: 'sosmed' as ActiveTab,
-      label: 'Laporan Sosmed',
-      subtitle: '7 Postingan & Foto Screenshot',
-      icon: Share2,
+      label: 'Recap Konten',
+      subtitle: 'Tahap VO, Edit & Status Post',
+      icon: Film,
       activeBg: 'bg-pink-600 text-white shadow-xs',
       activeIconBg: 'bg-white/20 text-white',
       inactiveIconBg: 'bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300',
       inactiveBorder: 'border-slate-200/80 hover:bg-pink-50/70 dark:border-slate-800 dark:hover:bg-slate-800/60',
-      badge: '7 POST',
+      badge: 'KONTEN',
       badgeClass: 'bg-pink-100 text-pink-900 border border-pink-300 font-bold dark:bg-pink-950/80 dark:text-pink-300 dark:border-pink-800',
     },
     {
