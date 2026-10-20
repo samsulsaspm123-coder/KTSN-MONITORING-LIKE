@@ -30,23 +30,123 @@ import {
   Share2,
   Info,
   AlertTriangle,
-  X
+  X,
+  Briefcase,
+  Zap,
+  Smartphone,
+  ShieldCheck
 } from 'lucide-react';
-import { RecapKontenItem, ContentProductionStatus, ContentUploadStatus, Employee } from '../types';
+import {
+  RecapKontenItem,
+  ContentProductionStatus,
+  ContentUploadStatus,
+  ContentDivisi,
+  Employee
+} from '../types';
 
 export const LOCAL_STORAGE_KEY_RECAP_KONTEN = 'likemonitor_recap_konten_items_v1';
 
-// Preset options for 1-click selection
+// 4 Divisions with their distinct color schemes, badges, and icons
+export const DIVISI_OPTIONS: {
+  id: ContentDivisi;
+  name: string;
+  fullName: string;
+  colorName: string;
+  icon: React.ComponentType<{ className?: string }>;
+  borderLeftClass: string;
+  cardBadgeClass: string;
+  filterActiveClass: string;
+  dotClass: string;
+  bgLight: string;
+}[] = [
+  {
+    id: 'Admin',
+    name: 'Admin',
+    fullName: 'Divisi Admin',
+    colorName: 'Indigo / Ungu',
+    icon: Briefcase,
+    borderLeftClass: 'border-l-4 border-l-indigo-500 dark:border-l-indigo-400',
+    cardBadgeClass: 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800',
+    filterActiveClass: 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-400/40',
+    dotClass: 'bg-indigo-500',
+    bgLight: 'bg-indigo-50/40 dark:bg-indigo-950/20'
+  },
+  {
+    id: 'FL Elekt',
+    name: 'FL Elekt',
+    fullName: 'Divisi Frontliner Elektrik',
+    colorName: 'Emerald / Hijau',
+    icon: Zap,
+    borderLeftClass: 'border-l-4 border-l-emerald-500 dark:border-l-emerald-400',
+    cardBadgeClass: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800',
+    filterActiveClass: 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-400/40',
+    dotClass: 'bg-emerald-500',
+    bgLight: 'bg-emerald-50/40 dark:bg-emerald-950/20'
+  },
+  {
+    id: 'FL HP',
+    name: 'FL HP',
+    fullName: 'Divisi Frontliner HP',
+    colorName: 'Amber / Oranye',
+    icon: Smartphone,
+    borderLeftClass: 'border-l-4 border-l-amber-500 dark:border-l-amber-400',
+    cardBadgeClass: 'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800',
+    filterActiveClass: 'bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/40',
+    dotClass: 'bg-amber-500',
+    bgLight: 'bg-amber-50/40 dark:bg-amber-950/20'
+  },
+  {
+    id: 'All Team',
+    name: 'All Team',
+    fullName: 'Divisi All Team (Semua Tim)',
+    colorName: 'Rose / Pink',
+    icon: Users,
+    borderLeftClass: 'border-l-4 border-l-rose-500 dark:border-l-rose-400',
+    cardBadgeClass: 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800',
+    filterActiveClass: 'bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-400/40',
+    dotClass: 'bg-rose-500',
+    bgLight: 'bg-rose-50/40 dark:bg-rose-950/20'
+  }
+];
+
+export function getDivisiConfig(divisi?: ContentDivisi) {
+  const found = DIVISI_OPTIONS.find((d) => d.id === divisi);
+  return found || DIVISI_OPTIONS[0]; // fallback to Admin
+}
+
+// Helper to format talent with divisi:
+// e.g. "Amelia" + "Admin" -> "Amelia Admin"
+// e.g. "Amelia Admin" + "Admin" -> "Amelia Admin"
+// e.g. "All Team" + "All Team" -> "All Team"
+export function formatTalentWithDivisi(talent: string, divisi?: ContentDivisi): string {
+  const clean = (talent || '').trim();
+  if (!clean && !divisi) return 'Talent';
+  if (!clean) return divisi || 'All Team';
+  if (clean.toLowerCase() === 'all team' || divisi === 'All Team') {
+    return 'All Team';
+  }
+  if (!divisi) return clean;
+
+  const escapedDivisi = divisi.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(?:\\s+|-)${escapedDivisi}$`, 'i');
+  if (regex.test(clean) || clean.toLowerCase() === divisi.toLowerCase()) {
+    return clean;
+  }
+  return `${clean} ${divisi}`;
+}
+
+// Preset options for talent quick select
 export const TALENT_PRESETS = [
-  'Amelia Admin',
+  'Amelia',
   'All Team',
-  'Team Sales',
-  'Team Service',
-  'Team Digital',
-  'Binti Admin',
-  'Christin Admin',
-  'Tiara Admin',
-  'Mega Admin'
+  'Binti',
+  'Christin',
+  'Tiara',
+  'Mega',
+  'Rian',
+  'Doni',
+  'Reza',
+  'Bagus'
 ];
 
 export const JENIS_KONTEN_PRESETS = [
@@ -61,55 +161,141 @@ export const JENIS_KONTEN_PRESETS = [
   'Perbandingan Produk'
 ];
 
-export const STATUS_PRODUKSI_PRESETS: { label: ContentProductionStatus; desc: string; color: string; iconBg: string }[] = [
-  { label: 'Tinggal VO', desc: 'Footage siap, tinggal rekam Voice Over', color: 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700', iconBg: 'bg-amber-500 text-white' },
-  { label: 'Belum/Tinggal Edit', desc: 'Bahan lengkap (footage + VO), belum/tinggal proses editing', color: 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-700', iconBg: 'bg-blue-500 text-white' },
-  { label: 'Done', desc: 'Semua beres, video selesai diedit & siap tayang', color: 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-700', iconBg: 'bg-emerald-500 text-white' },
-  { label: 'Take Video / Footage', desc: 'Masih proses pengambilan gambar/video', color: 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/70 dark:text-purple-300 dark:border-purple-700', iconBg: 'bg-purple-500 text-white' },
-  { label: 'Scripting / Naskah', desc: 'Sedang bikin naskah / ide konsep', color: 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700', iconBg: 'bg-slate-600 text-white' }
+export const STATUS_PRODUKSI_PRESETS: {
+  label: ContentProductionStatus;
+  desc: string;
+  color: string;
+  iconBg: string;
+}[] = [
+  {
+    label: 'Tinggal VO',
+    desc: 'Footage siap, tinggal rekam Voice Over',
+    color: 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700',
+    iconBg: 'bg-amber-500 text-white'
+  },
+  {
+    label: 'Belum/Tinggal Edit',
+    desc: 'Bahan lengkap (footage + VO), belum/tinggal editing',
+    color: 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-700',
+    iconBg: 'bg-blue-500 text-white'
+  },
+  {
+    label: 'Done',
+    desc: 'Semua beres, video selesai diedit & siap tayang',
+    color: 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-700',
+    iconBg: 'bg-emerald-500 text-white'
+  },
+  {
+    label: 'Take Video / Footage',
+    desc: 'Masih proses pengambilan gambar/video',
+    color: 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/70 dark:text-purple-300 dark:border-purple-700',
+    iconBg: 'bg-purple-500 text-white'
+  },
+  {
+    label: 'Scripting / Naskah',
+    desc: 'Sedang bikin naskah / ide konsep',
+    color: 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+    iconBg: 'bg-slate-600 text-white'
+  }
 ];
 
-export const STATUS_POST_OPTIONS: { label: ContentUploadStatus; color: string; badgeClass: string }[] = [
-  { label: 'Belum Upload', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800', badgeClass: 'bg-rose-500 text-white' },
-  { label: 'Sudah Upload', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800', badgeClass: 'bg-emerald-500 text-white' }
+export const STATUS_POST_OPTIONS: {
+  label: ContentUploadStatus;
+  color: string;
+  badgeClass: string;
+}[] = [
+  {
+    label: 'Belum Upload',
+    color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800',
+    badgeClass: 'bg-rose-500 text-white'
+  },
+  {
+    label: 'Sudah Upload',
+    color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
+    badgeClass: 'bg-emerald-500 text-white'
+  }
 ];
 
+// Default sample representing all 4 divisions and both upload statuses
 export const DEFAULT_RECAP_KONTEN_ITEMS: RecapKontenItem[] = [
   {
     id: 'rk-1',
-    talent: 'Amelia Admin',
+    talent: 'Amelia',
+    divisi: 'Admin',
     jenisKonten: 'Konten Edukasi',
     judulKonten: 'Sepeda Listrik Goda Sunray',
     statusProduksi: 'Tinggal VO',
     statusPost: 'Belum Upload',
     tanggal: new Date().toISOString().split('T')[0],
-    catatan: 'Footage detail display baterai & test ride sudah siap',
-    createdAt: Date.now() - 3600000 * 3,
-    updatedAt: Date.now() - 3600000 * 3
+    catatan: 'Footage display baterai & test ride siap, tinggal VO',
+    createdAt: Date.now() - 3600000 * 5,
+    updatedAt: Date.now() - 3600000 * 5
   },
   {
     id: 'rk-2',
-    talent: 'All Team',
-    jenisKonten: 'Behind The Scene',
-    judulKonten: 'Keseruan Unboxing Motor Listrik Baru',
-    statusProduksi: 'Belum/Tinggal Edit',
-    statusPost: 'Belum Upload',
-    tanggal: new Date().toISOString().split('T')[0],
-    catatan: 'Semua bahan dan audio sudah masuk drive, tinggal cut & subtitle',
-    createdAt: Date.now() - 3600000 * 2,
-    updatedAt: Date.now() - 3600000 * 2
-  },
-  {
-    id: 'rk-3',
-    talent: 'Amelia Admin',
+    talent: 'Amelia',
+    divisi: 'Admin',
     jenisKonten: 'Review Produk',
     judulKonten: 'Fitur Rahasia Goda Lemon 2026',
     statusProduksi: 'Done',
     statusPost: 'Sudah Upload',
     tanggal: new Date().toISOString().split('T')[0],
-    linkPost: 'https://instagram.com/p/example',
-    catatan: 'Sudah tayang di Reels & TikTok',
-    createdAt: Date.now() - 3600000 * 6,
+    linkPost: 'https://instagram.com/p/mega_ktsn_goda',
+    catatan: 'Sudah tayang di Reels & TikTok MEGA KTSN',
+    createdAt: Date.now() - 3600000 * 7,
+    updatedAt: Date.now() - 3600000 * 2
+  },
+  {
+    id: 'rk-3',
+    talent: 'Rian',
+    divisi: 'FL Elekt',
+    jenisKonten: 'Review Produk',
+    judulKonten: 'Test Ride Sepeda Listrik Exotic Cooltech',
+    statusProduksi: 'Done',
+    statusPost: 'Sudah Upload',
+    tanggal: new Date().toISOString().split('T')[0],
+    linkPost: 'https://instagram.com/p/mega_ktsn_exotic',
+    catatan: 'Tayang siang hari, performa views bagus',
+    createdAt: Date.now() - 3600000 * 4,
+    updatedAt: Date.now() - 3600000 * 1
+  },
+  {
+    id: 'rk-4',
+    talent: 'Bagus',
+    divisi: 'FL Elekt',
+    jenisKonten: 'Konten Edukasi',
+    judulKonten: 'Perawatan Baterai Sepeda Listrik Saat Musim Hujan',
+    statusProduksi: 'Tinggal VO',
+    statusPost: 'Belum Upload',
+    tanggal: new Date().toISOString().split('T')[0],
+    catatan: 'Tinggal dubbing suara Bagus',
+    createdAt: Date.now() - 3600000 * 3,
+    updatedAt: Date.now() - 3600000 * 3
+  },
+  {
+    id: 'rk-5',
+    talent: 'Doni',
+    divisi: 'FL HP',
+    jenisKonten: 'Tips & Trik',
+    judulKonten: 'Cara Maksimalkan Kamera HP Android Murah',
+    statusProduksi: 'Belum/Tinggal Edit',
+    statusPost: 'Belum Upload',
+    tanggal: new Date().toISOString().split('T')[0],
+    catatan: 'Footage di drive, tinggal cut & subtitle',
+    createdAt: Date.now() - 3600000 * 2,
+    updatedAt: Date.now() - 3600000 * 2
+  },
+  {
+    id: 'rk-6',
+    talent: 'All Team',
+    divisi: 'All Team',
+    jenisKonten: 'Behind The Scene',
+    judulKonten: 'Keseruan Unboxing Motor Listrik Baru',
+    statusProduksi: 'Belum/Tinggal Edit',
+    statusPost: 'Belum Upload',
+    tanggal: new Date().toISOString().split('T')[0],
+    catatan: 'Semua kru ikut shooting unboxing',
+    createdAt: Date.now() - 3600000 * 1,
     updatedAt: Date.now() - 3600000 * 1
   }
 ];
@@ -131,7 +317,18 @@ export function RecapKontenManager({
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_RECAP_KONTEN);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Normalize items ensuring each has a valid divisi
+          return parsed.map((item: any) => {
+            if (!item.divisi) {
+              if (item.talent?.toLowerCase().includes('all team')) item.divisi = 'All Team';
+              else if (item.talent?.toLowerCase().includes('elekt')) item.divisi = 'FL Elekt';
+              else if (item.talent?.toLowerCase().includes('hp')) item.divisi = 'FL HP';
+              else item.divisi = 'Admin';
+            }
+            return item as RecapKontenItem;
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to load recap konten:', e);
@@ -141,7 +338,8 @@ export function RecapKontenManager({
 
   // Form State for Adding / Editing
   const [isEditingId, setIsEditingId] = useState<string | null>(null);
-  const [talent, setTalent] = useState<string>('Amelia Admin');
+  const [talent, setTalent] = useState<string>('Amelia');
+  const [divisi, setDivisi] = useState<ContentDivisi>('Admin');
   const [isCustomTalent, setIsCustomTalent] = useState<boolean>(false);
   const [jenisKonten, setJenisKonten] = useState<string>('Konten Edukasi');
   const [isCustomJenis, setIsCustomJenis] = useState<boolean>(false);
@@ -154,9 +352,9 @@ export function RecapKontenManager({
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterDivisi, setFilterDivisi] = useState<string>('ALL'); // 'ALL' | 'Admin' | 'FL Elekt' | 'FL HP' | 'All Team'
   const [filterProduksi, setFilterProduksi] = useState<string>('ALL');
   const [filterPost, setFilterPost] = useState<string>('ALL');
-  const [filterTalent, setFilterTalent] = useState<string>('ALL');
 
   // UI state
   const [copiedWA, setCopiedWA] = useState<boolean>(false);
@@ -175,26 +373,27 @@ export function RecapKontenManager({
     }
   }, [items]);
 
-  // Derived talent list from default presets + employee names for easy 1-click select
+  // Derived talent list from presets + employee names
   const availableTalents = useMemo(() => {
-    const set = new Set<string>(TALENT_PRESETS);
+    const list = new Set<string>(TALENT_PRESETS);
     if (employees && employees.length > 0) {
       employees.slice(0, 30).forEach((emp) => {
-        if (emp.nama) set.add(`${emp.nama} (${emp.divisi || 'Staff'})`);
+        if (emp.nama) list.add(emp.nama);
       });
     }
-    return Array.from(set);
+    return Array.from(list);
   }, [employees]);
 
   // Format single line string matching user's exact specification:
   // "Amelia Admin - Konten Edukasi - Sepeda Listrik Goda Sunray ( tinggal VO) - belum upload/sudah upload"
   const formatItemString = (item: RecapKontenItem): string => {
+    const formattedTalent = formatTalentWithDivisi(item.talent, item.divisi);
     const postStatusLower = item.statusPost.toLowerCase();
     const prodStatusFormatted = item.statusProduksi === 'Done' ? 'done' : item.statusProduksi.toLowerCase();
-    return `${item.talent} - ${item.jenisKonten} - ${item.judulKonten} ( ${prodStatusFormatted} ) - ${postStatusLower}`;
+    return `${formattedTalent} - ${item.jenisKonten} - ${item.judulKonten} ( ${prodStatusFormatted} ) - ${postStatusLower}`;
   };
 
-  // Build complete WhatsApp text recap for sharing to team chat
+  // Build complete WhatsApp text recap grouped by Divisi, with uploaded videos first!
   const generateWhatsAppRecapText = useMemo(() => {
     const today = new Date();
     const dateFormatted = today.toLocaleDateString('id-ID', {
@@ -204,36 +403,56 @@ export function RecapKontenManager({
       year: 'numeric'
     });
 
+    const totalUploaded = items.filter((i) => i.statusPost === 'Sudah Upload').length;
+    const totalProgress = items.filter((i) => i.statusPost === 'Belum Upload').length;
+
     const lines: string[] = [];
     lines.push(`📋 *RECAP KONTEN HARIAN - MEGA ${storeCode}*`);
     lines.push(`🗓️ *Hari/Tanggal:* ${dateFormatted}`);
-    lines.push(`📊 *Total Konten:* ${items.length} Judul Konten`);
+    lines.push(`📊 *Total Konten:* ${items.length} Judul Konten (${totalUploaded} Tayang • ${totalProgress} Progress)`);
     lines.push('────────────────────────');
     lines.push('');
 
-    // Grouping by Status Post / Produksi
-    const belumUpload = items.filter((i) => i.statusPost === 'Belum Upload');
-    const sudahUpload = items.filter((i) => i.statusPost === 'Sudah Upload');
+    // Grouping by Divisi in order
+    const divisiOrder: ContentDivisi[] = ['Admin', 'FL Elekt', 'FL HP', 'All Team'];
+    const divisionIcons: Record<ContentDivisi, string> = {
+      Admin: '🏢',
+      'FL Elekt': '⚡',
+      'FL HP': '📱',
+      'All Team': '👥'
+    };
 
-    if (belumUpload.length > 0) {
-      lines.push(`⏳ *PROGRESS KONTEN (BELUM UPLOAD) [${belumUpload.length}]:*`);
-      belumUpload.forEach((item, idx) => {
-        lines.push(`${idx + 1}. ${formatItemString(item)}`);
-        if (item.catatan) {
-          lines.push(`   └ 💬 _${item.catatan}_`);
-        }
-      });
-      lines.push('');
-    }
+    let divisionsWithContent = 0;
 
-    if (sudahUpload.length > 0) {
-      lines.push(`✅ *KONTEN SUDAH TAYANG / UPLOAD [${sudahUpload.length}]:*`);
-      sudahUpload.forEach((item, idx) => {
-        lines.push(`${idx + 1}. ${formatItemString(item)}`);
-        if (item.linkPost) {
-          lines.push(`   └ 🔗 ${item.linkPost}`);
-        }
-      });
+    divisiOrder.forEach((div) => {
+      // Find all items belonging to this division
+      const divItems = items.filter((it) => (it.divisi || 'Admin') === div);
+
+      if (divItems.length > 0) {
+        divisionsWithContent++;
+        // Order within division: SUDAH UPLOAD first, then BELUM UPLOAD
+        const uploadedInDiv = divItems.filter((it) => it.statusPost === 'Sudah Upload');
+        const belumInDiv = divItems.filter((it) => it.statusPost === 'Belum Upload');
+        const sortedDivItems = [...uploadedInDiv, ...belumInDiv];
+
+        const divIcon = divisionIcons[div] || '📌';
+        lines.push(`${divIcon} *DIVISI ${div.toUpperCase()}* (${sortedDivItems.length} Konten: ${uploadedInDiv.length} Tayang, ${belumInDiv.length} Progress):`);
+
+        sortedDivItems.forEach((item, idx) => {
+          lines.push(`${idx + 1}. ${formatItemString(item)}`);
+          if (item.statusPost === 'Sudah Upload' && item.linkPost) {
+            lines.push(`   └ 🔗 ${item.linkPost}`);
+          } else if (item.statusPost === 'Belum Upload' && item.catatan) {
+            lines.push(`   └ 💬 _${item.catatan}_`);
+          }
+        });
+
+        lines.push('');
+      }
+    });
+
+    if (divisionsWithContent === 0) {
+      lines.push('_(Belum ada data konten tersimpan. Tambahkan konten baru di sistem)_');
       lines.push('');
     }
 
@@ -262,6 +481,7 @@ export function RecapKontenManager({
             ? {
                 ...it,
                 talent: effectiveTalent,
+                divisi,
                 jenisKonten: effectiveJenis,
                 judulKonten: judulKonten.trim(),
                 statusProduksi,
@@ -281,6 +501,7 @@ export function RecapKontenManager({
       const newItem: RecapKontenItem = {
         id: `rk-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         talent: effectiveTalent,
+        divisi,
         jenisKonten: effectiveJenis,
         judulKonten: judulKonten.trim(),
         statusProduksi,
@@ -292,39 +513,46 @@ export function RecapKontenManager({
         updatedAt: Date.now()
       };
       setItems((prev) => [newItem, ...prev]);
-      setSaveBanner('Konten baru berhasil ditambahkan!');
+      setSaveBanner(`Konten ${formatTalentWithDivisi(effectiveTalent, divisi)} berhasil ditambahkan!`);
     }
 
-    // Reset non-preset inputs while keeping selected talent & jenis for faster multi-entry
+    // Reset inputs
     setJudulKonten('');
     setCatatan('');
     setLinkPost('');
     setTimeout(() => setSaveBanner(null), 3000);
   };
 
-  // Quick 1-Click Update Status directly on item card
+  // Quick 1-click update status produksi on a card
   const handleQuickUpdateProduksi = (id: string, newStatus: ContentProductionStatus) => {
     setItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, statusProduksi: newStatus, updatedAt: Date.now() } : it))
     );
+    setSaveBanner(`Status produksi diperbarui jadi: "${newStatus}"`);
+    setTimeout(() => setSaveBanner(null), 2500);
   };
 
+  // Quick 1-click toggle status posting (Sudah Upload <-> Belum Upload)
   const handleQuickTogglePostStatus = (id: string) => {
     setItems((prev) =>
       prev.map((it) => {
         if (it.id === id) {
-          const nextPost = it.statusPost === 'Belum Upload' ? 'Sudah Upload' : 'Belum Upload';
-          return { ...it, statusPost: nextPost, updatedAt: Date.now() };
+          const toggled: ContentUploadStatus =
+            it.statusPost === 'Sudah Upload' ? 'Belum Upload' : 'Sudah Upload';
+          return { ...it, statusPost: toggled, updatedAt: Date.now() };
         }
         return it;
       })
     );
+    setSaveBanner('Status posting berhasil diperbarui');
+    setTimeout(() => setSaveBanner(null), 2000);
   };
 
-  // Edit item action
+  // Start edit item
   const handleStartEdit = (item: RecapKontenItem) => {
     setIsEditingId(item.id);
     setTalent(item.talent);
+    setDivisi(item.divisi || 'Admin');
     setJenisKonten(item.jenisKonten);
     setJudulKonten(item.judulKonten);
     setStatusProduksi(item.statusProduksi);
@@ -350,99 +578,135 @@ export function RecapKontenManager({
     setTimeout(() => setSaveBanner(null), 2500);
   };
 
-  // 1. Reset Contoh: Muat ulang 3 contoh format default
+  // 1. Reset Contoh: Kembali ke 6 contoh data bawaan lengkap 4 divisi
   const handleResetContoh = () => {
     setItems(DEFAULT_RECAP_KONTEN_ITEMS);
     setShowResetContohModal(false);
-    setSaveBanner('Berhasil memuat ulang contoh data recap konten standar!');
-    setTimeout(() => setSaveBanner(null), 3000);
+    setSaveBanner('Berhasil memuat ulang 6 contoh data recap konten lengkap 4 divisi!');
+    setTimeout(() => setSaveBanner(null), 3500);
   };
 
   // 2. Reset Data Semua: Kosongkan seluruh data untuk ganti bulan baru
   const handleResetSemuaData = () => {
     setItems([]);
     setShowResetAllModal(false);
-    if (isEditingId) handleCancelEdit();
-    setSaveBanner('Semua data recap bulan lalu telah dihapus bersih. Siap untuk rekap bulan baru!');
-    setTimeout(() => setSaveBanner(null), 3500);
+    setSaveBanner('Seluruh data konten bulan lalu telah dihapus. Siap untuk rekap bulan baru!');
+    setTimeout(() => setSaveBanner(null), 4000);
   };
 
-  // Copy full WA recap
+  // Copy single formatted line to clipboard
+  const handleCopySingleItem = (item: RecapKontenItem) => {
+    const text = formatItemString(item);
+    navigator.clipboard.writeText(text);
+    setCopiedItemText(item.id);
+    setTimeout(() => setCopiedItemText(null), 2000);
+  };
+
+  // Copy full WA recap to clipboard
   const handleCopyWARecap = () => {
     navigator.clipboard.writeText(generateWhatsAppRecapText);
     setCopiedWA(true);
-    setTimeout(() => setCopiedWA(false), 2000);
+    setTimeout(() => setCopiedWA(false), 2500);
   };
 
-  // Copy single item text
-  const handleCopySingleItem = (item: RecapKontenItem) => {
-    const formatted = formatItemString(item);
-    navigator.clipboard.writeText(formatted);
-    setCopiedItemText(item.id);
-    setTimeout(() => setCopiedItemText(null), 1500);
-  };
-
-  // Share to WhatsApp URL
+  // Direct share to WhatsApp
   const handleShareWhatsApp = () => {
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(generateWhatsAppRecapText)}`;
-    window.open(url, '_blank');
+    const encoded = encodeURIComponent(generateWhatsAppRecapText);
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
   };
 
-  // Filtered Items
-  const filteredItems = useMemo(() => {
-    return items.filter((it) => {
-      const q = searchQuery.toLowerCase();
-      const matchSearch =
-        it.judulKonten.toLowerCase().includes(q) ||
-        it.talent.toLowerCase().includes(q) ||
-        it.jenisKonten.toLowerCase().includes(q) ||
-        (it.catatan && it.catatan.toLowerCase().includes(q));
-
-      const matchProduksi = filterProduksi === 'ALL' || it.statusProduksi === filterProduksi;
-      const matchPost = filterPost === 'ALL' || it.statusPost === filterPost;
-      const matchTalent = filterTalent === 'ALL' || it.talent === filterTalent;
-
-      return matchSearch && matchProduksi && matchPost && matchTalent;
+  // Count items per division for quick stats & filter pills
+  const divisionCounts = useMemo(() => {
+    const counts: Record<ContentDivisi, number> = {
+      Admin: 0,
+      'FL Elekt': 0,
+      'FL HP': 0,
+      'All Team': 0
+    };
+    items.forEach((it) => {
+      const d = it.divisi || 'Admin';
+      if (counts[d] !== undefined) counts[d]++;
     });
-  }, [items, searchQuery, filterProduksi, filterPost, filterTalent]);
+    return counts;
+  }, [items]);
 
-  // Counts summary
+  // Filtered items for display
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      // Division filter
+      if (filterDivisi !== 'ALL' && (item.divisi || 'Admin') !== filterDivisi) {
+        return false;
+      }
+      // Status Produksi filter
+      if (filterProduksi !== 'ALL' && item.statusProduksi !== filterProduksi) {
+        return false;
+      }
+      // Status Post filter
+      if (filterPost !== 'ALL' && item.statusPost !== filterPost) {
+        return false;
+      }
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const formattedT = formatTalentWithDivisi(item.talent, item.divisi).toLowerCase();
+        const matchJudul = item.judulKonten.toLowerCase().includes(q);
+        const matchTalent = formattedT.includes(q) || item.talent.toLowerCase().includes(q);
+        const matchJenis = item.jenisKonten.toLowerCase().includes(q);
+        const matchDivisi = (item.divisi || '').toLowerCase().includes(q);
+        const matchCatatan = (item.catatan || '').toLowerCase().includes(q);
+        return matchJudul || matchTalent || matchJenis || matchDivisi || matchCatatan;
+      }
+      return true;
+    });
+  }, [items, filterDivisi, filterProduksi, filterPost, searchQuery]);
+
+  // Overall statistics
   const stats = useMemo(() => {
     const total = items.length;
+    const sudahUpload = items.filter((i) => i.statusPost === 'Sudah Upload').length;
+    const belumUpload = items.filter((i) => i.statusPost === 'Belum Upload').length;
     const tinggalVO = items.filter((i) => i.statusProduksi === 'Tinggal VO').length;
     const tinggalEdit = items.filter((i) => i.statusProduksi === 'Belum/Tinggal Edit').length;
     const doneProduksi = items.filter((i) => i.statusProduksi === 'Done').length;
-    const sudahUpload = items.filter((i) => i.statusPost === 'Sudah Upload').length;
-    const belumUpload = items.filter((i) => i.statusPost === 'Belum Upload').length;
-    return { total, tinggalVO, tinggalEdit, doneProduksi, sudahUpload, belumUpload };
+    return { total, sudahUpload, belumUpload, tinggalVO, tinggalEdit, doneProduksi };
   }, [items]);
 
+  // Preview formatted text for current input form
+  const currentInputFormatted = useMemo(() => {
+    const effectiveTalent = talent.trim() || 'Amelia';
+    const formattedT = formatTalentWithDivisi(effectiveTalent, divisi);
+    const effectiveJenis = jenisKonten.trim() || 'Konten Edukasi';
+    const effectiveJudul = judulKonten.trim() || 'Sepeda Listrik Goda Sunray';
+    const prodLower = statusProduksi === 'Done' ? 'done' : statusProduksi.toLowerCase();
+    const postLower = statusPost.toLowerCase();
+    return `${formattedT} - ${effectiveJenis} - ${effectiveJudul} ( ${prodLower} ) - ${postLower}`;
+  }, [talent, divisi, jenisKonten, judulKonten, statusProduksi, statusPost]);
+
+  const activeDivisiConfig = getDivisiConfig(divisi);
+
   return (
-    <div className="space-y-6">
-      {/* Top Header Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs transition-colors">
+    <div className="space-y-6 animate-fade-in">
+      {/* Top Header & WhatsApp Action Card */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-pink-100 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 flex items-center justify-center shrink-0 shadow-2xs">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-pink-600 via-rose-500 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
               <Film className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-pink-100 text-pink-800 dark:bg-pink-950/80 dark:text-pink-300 dark:border dark:border-pink-800">
-                  RECAP KONTEN HARIAN
+                <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                  Recap Konten Harian
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-pink-100 text-pink-700 dark:bg-pink-950/80 dark:text-pink-300 border border-pink-200 dark:border-pink-800">
+                  Data Permanen Tiap Hari
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                  Data Permanen & Auto-Save
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
-                  Tinggal Klik Status
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300">
+                  4 Divisi Warna
                 </span>
               </div>
-              <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-1">
-                Recap Produksi & Progress Konten Harian
-              </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Format instan per baris: <strong>Talent</strong> - <strong>Jenis Konten</strong> - <strong>Judul (Status Produksi)</strong> - <strong>Status Post</strong>. Data tersimpan aman setiap hari.
+                Pilih talent & divisi, klik tahap produksi & status posting &bull; Format WA otomatis dikelompokkan per divisi (video tayang paling atas)
               </p>
             </div>
           </div>
@@ -475,8 +739,45 @@ export function RecapKontenManager({
           </div>
         </div>
 
+        {/* Division Summary Banner: Visual Color Recognition */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
+          {DIVISI_OPTIONS.map((d) => {
+            const Icon = d.icon;
+            const count = divisionCounts[d.id] || 0;
+            const isSelected = filterDivisi === d.id;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setFilterDivisi(filterDivisi === d.id ? 'ALL' : d.id)}
+                className={`p-2.5 rounded-xl border transition-all text-left flex items-center justify-between cursor-pointer ${
+                  isSelected
+                    ? `${d.cardBadgeClass} ring-2 ring-current shadow-xs`
+                    : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700/60'
+                }`}
+                title={`Klik untuk filter hanya Divisi ${d.name}`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${d.cardBadgeClass}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div className="truncate">
+                    <div className="text-[10px] uppercase font-bold tracking-wider opacity-70">
+                      Divisi
+                    </div>
+                    <div className="text-xs font-black truncate">{d.name}</div>
+                  </div>
+                </div>
+                <div className="text-base font-black px-2 py-0.5 rounded-md bg-white/80 dark:bg-slate-900/80 shadow-2xs">
+                  {count}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Stats Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
           <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60">
             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Total Judul</span>
             <div className="text-lg font-black text-slate-900 dark:text-white mt-0.5">{stats.total} Konten</div>
@@ -547,7 +848,7 @@ export function RecapKontenManager({
           </div>
 
           <form onSubmit={handleSubmitForm} className="space-y-4">
-            {/* 1. NAMA TALENT (1-Click Presets + All Team) */}
+            {/* 1. NAMA TALENT */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -559,7 +860,7 @@ export function RecapKontenManager({
                   onClick={() => setIsCustomTalent(!isCustomTalent)}
                   className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer"
                 >
-                  {isCustomTalent ? 'Pilih Preset' : '+ Ketik Manual'}
+                  {isCustomTalent ? 'Pilih Nama Cepat' : '+ Ketik Manual'}
                 </button>
               </div>
 
@@ -568,21 +869,23 @@ export function RecapKontenManager({
                   type="text"
                   value={talent}
                   onChange={(e) => setTalent(e.target.value)}
-                  placeholder="Ketik nama talent (misal: Amelia Admin, All Team, dsb)"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                  placeholder="Ketik nama talent (misal: Amelia, Rian, Doni, All Team)"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
                 />
               ) : (
                 <div className="space-y-2">
                   <div className="flex flex-wrap gap-1.5">
-                    {/* Always visible popular choices */}
-                    {['Amelia Admin', 'All Team', 'Team Sales', 'Team Service'].map((t) => (
+                    {['Amelia', 'All Team', 'Binti', 'Christin', 'Rian', 'Doni'].map((t) => (
                       <button
                         key={t}
                         type="button"
-                        onClick={() => setTalent(t)}
+                        onClick={() => {
+                          setTalent(t);
+                          if (t === 'All Team') setDivisi('All Team');
+                        }}
                         className={`px-2.5 py-1 text-xs rounded-lg font-bold border transition-all cursor-pointer ${
                           talent === t
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                            ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 shadow-2xs'
                             : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                         }`}
                       >
@@ -591,14 +894,18 @@ export function RecapKontenManager({
                     ))}
                   </div>
 
-                  {/* Dropdown for other staff/talents */}
+                  {/* Dropdown for other talents / employees */}
                   <div className="relative">
                     <select
                       value={talent}
-                      onChange={(e) => setTalent(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTalent(val);
+                        if (val === 'All Team') setDivisi('All Team');
+                      }}
                       className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium cursor-pointer"
                     >
-                      <option value="">-- Pilih dari Daftar Talent / Staff --</option>
+                      <option value="">-- Pilih dari Daftar Karyawan / Talent Lainnya --</option>
                       {availableTalents.map((t) => (
                         <option key={t} value={t}>
                           {t}
@@ -610,12 +917,54 @@ export function RecapKontenManager({
               )}
             </div>
 
-            {/* 2. JENIS KONTEN (1-Click Presets) */}
+            {/* 2. DIVISI (Tepat Di Bawah Nama Talent - 4 Pilihan Warna) */}
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400" />
+                  <span>2. Divisi:</span>
+                  <span className="text-[10px] text-slate-400 font-normal">(Hasil recap: nama + divisi)</span>
+                </label>
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  Hasil: <strong className="text-indigo-600 dark:text-indigo-400">{formatTalentWithDivisi(talent, divisi)}</strong>
+                </span>
+              </div>
+
+              {/* 4 Division Buttons with Distinct Colors */}
+              <div className="grid grid-cols-2 gap-2">
+                {DIVISI_OPTIONS.map((d) => {
+                  const Icon = d.icon;
+                  const isSelected = divisi === d.id;
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setDivisi(d.id)}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2 ${
+                        isSelected
+                          ? `${d.cardBadgeClass} ring-2 ring-current shadow-xs font-black scale-[1.01]`
+                          : 'bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${d.cardBadgeClass}`}>
+                        <Icon className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-black truncate">{d.name}</div>
+                        <div className="text-[10px] opacity-75 truncate">{d.colorName}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. JENIS KONTEN */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Tag className="w-3.5 h-3.5 text-purple-500" />
-                  <span>2. Jenis Konten:</span>
+                  <span>3. Jenis Konten:</span>
                 </label>
                 <button
                   type="button"
@@ -654,11 +1003,11 @@ export function RecapKontenManager({
               )}
             </div>
 
-            {/* 3. JUDUL KONTEN */}
+            {/* 4. JUDUL KONTEN */}
             <div>
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1.5">
                 <FileText className="w-3.5 h-3.5 text-pink-500" />
-                <span>3. Judul Konten:</span>
+                <span>4. Judul Konten:</span>
                 <span className="text-rose-500">*</span>
               </label>
               <input
@@ -671,11 +1020,11 @@ export function RecapKontenManager({
               />
             </div>
 
-            {/* 4. TAHAP STATUS PRODUKSI (Tinggal Klik Saja) */}
+            {/* 5. TAHAP STATUS PRODUKSI (Tinggal Klik Saja) */}
             <div>
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1.5">
                 <Scissors className="w-3.5 h-3.5 text-amber-500" />
-                <span>4. Tahap Status Produksi:</span>
+                <span>5. Tahap Status Produksi:</span>
                 <span className="text-[10px] text-slate-400 font-normal">(Tinggal klik salah satu)</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -703,11 +1052,11 @@ export function RecapKontenManager({
               </div>
             </div>
 
-            {/* 5. STATUS POSTING (Sudah Upload / Belum Upload) */}
+            {/* 6. STATUS POSTING (Sudah Upload / Belum Upload) */}
             <div>
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1.5">
                 <Upload className="w-3.5 h-3.5 text-emerald-500" />
-                <span>5. Status Posting:</span>
+                <span>6. Status Posting:</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {STATUS_POST_OPTIONS.map((sp) => {
@@ -737,7 +1086,7 @@ export function RecapKontenManager({
                 type="text"
                 value={catatan}
                 onChange={(e) => setCatatan(e.target.value)}
-                placeholder="Catatan tambahan (misal: bahan video di HP admin, audio sudah ada)"
+                placeholder="Catatan tambahan (misal: bahan video di HP admin, tinggal VO)"
                 className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
               />
 
@@ -768,8 +1117,7 @@ export function RecapKontenManager({
               Pratinjau Format Baris Anda:
             </span>
             <code className="font-mono text-xs text-indigo-700 dark:text-indigo-300 font-bold break-all block">
-              {talent || 'Talent'} - {jenisKonten || 'Jenis Konten'} - {judulKonten || 'Judul Konten'} ({' '}
-              {statusProduksi.toLowerCase()} ) - {statusPost.toLowerCase()}
+              {currentInputFormatted}
             </code>
           </div>
         </div>
@@ -785,39 +1133,86 @@ export function RecapKontenManager({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari judul konten, talent, atau jenis..."
+                  placeholder="Cari judul, talent, divisi, atau status..."
                   className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                 />
               </div>
 
-              {/* Reset to Default Sample */}
-              <button
-                type="button"
-                onClick={() => setShowResetContohModal(true)}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
-                title="Muat ulang 3 baris format contoh bawaan"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span>Reset Contoh</span>
-              </button>
+              {/* 2 Reset Actions: Reset Contoh & Reset Data Semua (Ganti Bulan) */}
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setShowResetContohModal(true)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  title="Muat ulang contoh data recap 4 divisi standar"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Reset Contoh</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setShowResetAllModal(true)}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
-                title="Hapus bersih semua data konten bulan lalu untuk ganti bulan baru"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                <span>Reset Data Semua</span>
-                <span className="text-[10px] px-1 py-0.2 bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200 rounded font-normal">
-                  Ganti Bulan
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setShowResetAllModal(true)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  title="Hapus bersih semua data konten bulan lalu untuk ganti bulan baru"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                  <span>Reset Data Semua</span>
+                  <span className="text-[10px] px-1 py-0.2 bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200 rounded font-normal">
+                    Ganti Bulan
+                  </span>
+                </button>
+              </div>
             </div>
 
-            {/* Filter Pills */}
-            <div className="flex items-center gap-2 flex-wrap text-xs">
-              <span className="text-[11px] font-bold text-slate-400">Filter:</span>
+            {/* FILTER DIVISI (4 Pilihan Berwarna + Semua) */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1">
+                  <Filter className="w-3 h-3" /> Divisi:
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setFilterDivisi('ALL')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                    filterDivisi === 'ALL'
+                      ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 shadow-2xs'
+                      : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  Semua Divisi ({items.length})
+                </button>
+
+                {DIVISI_OPTIONS.map((d) => {
+                  const Icon = d.icon;
+                  const isSelected = filterDivisi === d.id;
+                  const count = divisionCounts[d.id] || 0;
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setFilterDivisi(d.id)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                        isSelected
+                          ? d.filterActiveClass
+                          : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <Icon className="w-3 h-3" />
+                      <span>{d.name}</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Filter Pills for Status Produksi & Upload */}
+            <div className="flex items-center gap-2 flex-wrap text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-[11px] font-bold text-slate-400">Filter Status:</span>
 
               {/* Status Produksi Filter */}
               <select
@@ -843,10 +1238,11 @@ export function RecapKontenManager({
                 <option value="Sudah Upload">Sudah Upload</option>
               </select>
 
-              {(filterProduksi !== 'ALL' || filterPost !== 'ALL' || searchQuery) && (
+              {(filterDivisi !== 'ALL' || filterProduksi !== 'ALL' || filterPost !== 'ALL' || searchQuery) && (
                 <button
                   type="button"
                   onClick={() => {
+                    setFilterDivisi('ALL');
                     setFilterProduksi('ALL');
                     setFilterPost('ALL');
                     setSearchQuery('');
@@ -866,33 +1262,48 @@ export function RecapKontenManager({
                 <Film className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
                 <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Belum Ada Data Konten</h4>
                 <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                  Tambahkan konten di formulir sebelah kiri atau klik &quot;Reset Contoh&quot; untuk memuat data awal.
+                  {filterDivisi !== 'ALL'
+                    ? `Tidak ada data konten untuk Divisi ${filterDivisi}. Coba ubah filter atau tambahkan konten baru.`
+                    : 'Tambahkan konten di formulir sebelah kiri atau klik "Reset Contoh" untuk memuat data awal.'}
                 </p>
               </div>
             ) : (
               filteredItems.map((item, index) => {
+                const itemDivisi = item.divisi || 'Admin';
+                const divConfig = getDivisiConfig(itemDivisi);
+                const DivIcon = divConfig.icon;
+                const formattedTalent = formatTalentWithDivisi(item.talent, item.divisi);
                 const isItemDone = item.statusProduksi === 'Done';
                 const isUploaded = item.statusPost === 'Sudah Upload';
 
                 return (
                   <div
                     key={item.id}
-                    className={`bg-white dark:bg-slate-900 border rounded-2xl p-4 shadow-xs transition-all ${
+                    className={`bg-white dark:bg-slate-900 border ${divConfig.borderLeftClass} rounded-2xl p-4 shadow-xs transition-all ${
                       isUploaded
                         ? 'border-emerald-200 dark:border-emerald-800/80 bg-emerald-50/20 dark:bg-emerald-950/10'
                         : 'border-slate-200 dark:border-slate-800 hover:border-pink-300 dark:hover:border-pink-800'
                     }`}
                   >
-                    {/* Top Row: Index + Talent + Jenis Konten + Action Buttons */}
+                    {/* Top Row: Index + Divisi Badge (Distinct Color) + Talent + Jenis Konten + Actions */}
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-xs font-black shrink-0">
                           {index + 1}
                         </span>
 
+                        {/* Distinct Divisi Badge with Color */}
+                        <span
+                          className={`px-2.5 py-0.5 rounded-lg text-xs font-black border flex items-center gap-1 ${divConfig.cardBadgeClass}`}
+                          title={`Divisi: ${divConfig.fullName}`}
+                        >
+                          <DivIcon className="w-3 h-3" />
+                          <span>{itemDivisi}</span>
+                        </span>
+
                         {/* Talent Badge */}
-                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-black bg-indigo-100 dark:bg-indigo-950/70 text-indigo-900 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                          {item.talent}
+                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-black bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                          {formattedTalent}
                         </span>
 
                         {/* Jenis Konten Badge */}
@@ -983,7 +1394,7 @@ export function RecapKontenManager({
                       </button>
                     </div>
 
-                    {/* 1-CLICK STAGE CONTROLS (Tinggal Klik Di Sini) */}
+                    {/* 1-CLICK STAGE CONTROLS */}
                     <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       {/* Tahap Produksi 1-Click Buttons */}
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -1052,7 +1463,7 @@ export function RecapKontenManager({
               <div className="flex items-center gap-2">
                 <Share2 className="w-4 h-4 text-emerald-600" />
                 <h4 className="font-black text-sm text-slate-900 dark:text-white">
-                  Pratinjau Format WhatsApp Siap Kirim
+                  Pratinjau Format WhatsApp Siap Kirim (Dikelompokkan Per Divisi)
                 </h4>
               </div>
               <button
@@ -1064,6 +1475,10 @@ export function RecapKontenManager({
                 <span>{copiedWA ? 'Tersalin!' : 'Salin Format'}</span>
               </button>
             </div>
+
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Format WhatsApp otomatis mengelompokkan konten per divisi (Admin, FL Elekt, FL HP, All Team). Di dalam tiap divisi, video yang <strong>sudah upload diletakkan di nomor teratas</strong>, disusul video yang belum upload.
+            </p>
 
             <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto border border-slate-800">
               {generateWhatsAppRecapText}
@@ -1096,12 +1511,12 @@ export function RecapKontenManager({
                 Muat Ulang Contoh Format Data?
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                Tindakan ini akan mengembalikan daftar recap ke <strong>3 contoh konten standar</strong> (Amelia Admin - Konten Edukasi, All Team - Behind The Scene, dsb) untuk panduan pengisian. Data yang sedang aktif saat ini akan ditimpa.
+                Tindakan ini akan mengembalikan daftar recap ke <strong>6 contoh konten standar 4 divisi</strong> (Amelia Admin, Rian FL Elekt, Doni FL HP, All Team) lengkap dengan status Sudah Upload di atas dan Belum Upload di bawah. Data yang sedang aktif saat ini akan ditimpa.
               </p>
             </div>
 
             <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 text-xs text-indigo-900 dark:text-indigo-300">
-              💡 <em>Gunakan fitur ini jika Anda ingin melihat kembali contoh format atau baru pertama kali mencoba pengisian rekap.</em>
+              💡 <em>Gunakan fitur ini jika Anda ingin melihat kembali contoh format 4 divisi atau baru mencoba pengisian rekap.</em>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">

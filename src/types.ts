@@ -121,9 +121,12 @@ export type ContentUploadStatus =
   | 'Sudah Upload'
   | 'Belum Upload';
 
+export type ContentDivisi = 'Admin' | 'FL Elekt' | 'FL HP' | 'All Team';
+
 export interface RecapKontenItem {
   id: string;
-  talent: string; // e.g. "Amelia Admin", "All Team"
+  talent: string; // e.g. "Amelia", "All Team"
+  divisi?: ContentDivisi; // 'Admin' | 'FL Elekt' | 'FL HP' | 'All Team'
   jenisKonten: string; // e.g. "Konten Edukasi", "Review Produk", "Promo / Diskon"
   judulKonten: string; // e.g. "Sepeda Listrik Goda Sunray"
   statusProduksi: ContentProductionStatus; // "Tinggal VO", "Belum/Tinggal Edit", "Done"
