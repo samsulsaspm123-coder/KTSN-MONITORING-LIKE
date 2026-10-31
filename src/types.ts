@@ -1,11 +1,15 @@
 export type EmployeeStatus = 'Normal' | 'Cuti' | 'Off' | 'Izin' | 'Sakit' | 'HP Hilang' | 'Bebas';
 
+export type LikePlatformMode = 'instagram' | 'facebook';
+
 export interface Employee {
   id: string;
   divisi: string;
   nama: string;
-  username1: string;
-  username2?: string;
+  username1: string; // Akun Instagram 1 (Utama)
+  username2?: string; // Akun Instagram 2 (Cadangan)
+  fbUsername1?: string; // Akun / Nama Profil Facebook 1 (Utama)
+  fbUsername2?: string; // Akun / Nama Profil Facebook 2 (Cadangan)
   status: EmployeeStatus;
   keterangan?: string;
   hasMetDailyQuota?: boolean; // Indikator apakah karyawan sudah memenuhi kuota like harian
@@ -16,9 +20,27 @@ export interface EmployeeCheckResult {
   employee: Employee;
   hasLiked: boolean;
   matchedUsername?: string;
+  matchType?: 'exact' | 'manual_confirmed';
+  missingPlatformAccount?: boolean;
   isExempt: boolean; // Cuti, Off, etc.
   exemptReason?: string;
   isPenalized: boolean; // Normal & hasLiked === false
+}
+
+export type SimilarLikerConflictLevel = 'likely_same' | 'needs_check' | 'high_risk_different';
+
+export interface SimilarLikerCandidate {
+  id: string; // `${employee.id}::${likerNormalized}`
+  likerRaw: string;
+  likerNormalized: string;
+  employee: Employee;
+  comparedAgainst: string;
+  comparedSource: 'fbUsername' | 'igUsername' | 'employeeName';
+  similarityScore: number; // 0..100
+  conflictLevel: SimilarLikerConflictLevel;
+  reason: string;
+  hasEmployeeCollision: boolean;
+  conflictingEmployeeNames?: string[];
 }
 
 export interface DivisionSummary {
@@ -34,6 +56,7 @@ export interface DivisionSummary {
 }
 
 export interface LikersProcessResult {
+  platform: LikePlatformMode;
   tanggalStr: string;
   urlPost: string;
   storeCode: string;
@@ -49,6 +72,8 @@ export interface LikersProcessResult {
   waTextOutput: string;
   unrecognizedLikersCount: number;
   unrecognizedLikers: string[];
+  similarCandidates: SimilarLikerCandidate[];
+  unmappedPlatformEmployeesCount: number;
 }
 
 export interface SheetConfig {

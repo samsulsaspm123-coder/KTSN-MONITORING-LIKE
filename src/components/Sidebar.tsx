@@ -54,13 +54,13 @@ export function Sidebar({
     {
       id: 'rekap' as ActiveTab,
       label: 'Rekap Like WA',
-      subtitle: 'Generator Text & Template WA',
+      subtitle: 'Mode Instagram & Facebook',
       icon: MessageSquare,
       activeBg: 'bg-emerald-600 text-white shadow-xs',
       activeIconBg: 'bg-white/20 text-white',
       inactiveIconBg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
       inactiveBorder: 'border-slate-200/80 hover:bg-emerald-50/70 dark:border-slate-800 dark:hover:bg-slate-800/60',
-      badge: 'WA',
+      badge: 'IG•FB',
       badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800',
     },
     {
@@ -90,7 +90,7 @@ export function Sidebar({
     {
       id: 'karyawan' as ActiveTab,
       label: 'Data Karyawan',
-      subtitle: 'Kelola Kuota & 151 Staff',
+      subtitle: `Akun IG & FB (${employeeCount} Staf)`,
       icon: Users,
       activeBg: 'bg-indigo-600 text-white shadow-xs',
       activeIconBg: 'bg-white/20 text-white',
@@ -101,14 +101,14 @@ export function Sidebar({
     },
     {
       id: 'extension' as ActiveTab,
-      label: 'Ekstensi IG Chrome',
-      subtitle: 'Ambil Like IG Otomatis',
+      label: 'Ekstensi IG & FB',
+      subtitle: 'Ambil Like IG & FB Otomatis',
       icon: Chrome,
       activeBg: 'bg-amber-500 text-slate-950 shadow-xs font-black',
       activeIconBg: 'bg-slate-900/20 text-slate-950',
       inactiveIconBg: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
       inactiveBorder: 'border-slate-200/80 hover:bg-amber-50/70 dark:border-slate-800 dark:hover:bg-slate-800/60',
-      badge: 'AUTO',
+      badge: 'v2.0',
       badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800',
     },
     {
@@ -137,8 +137,8 @@ export function Sidebar({
     },
     {
       id: 'console' as ActiveTab,
-      label: 'Script IG Console',
-      subtitle: 'Ambil Like Manual di DevTools',
+      label: 'Script Console',
+      subtitle: 'Script DevTools IG & FB',
       icon: Terminal,
       activeBg: 'bg-rose-600 text-white shadow-xs',
       activeIconBg: 'bg-white/20 text-white',

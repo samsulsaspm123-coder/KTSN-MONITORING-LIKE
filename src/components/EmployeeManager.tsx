@@ -1,52 +1,92 @@
-import React, { useState, useMemo, ChangeEvent, FormEvent } from 'react';
-import { 
-  Users, 
-  UserPlus, 
-  Search, 
-  Filter, 
-  Trash2, 
-  Edit3, 
-  Download, 
-  Upload, 
-  RefreshCw, 
-  Check, 
-  X, 
-  FileSpreadsheet, 
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  Users,
+  UserPlus,
+  Search,
+  Trash2,
+  Edit3,
+  Download,
+  Upload,
+  RefreshCw,
+  Check,
+  X,
+  FileSpreadsheet,
   AlertCircle,
   Sparkles,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Instagram,
+  ThumbsUp,
+  AlertTriangle,
 } from 'lucide-react';
-import { Employee, EmployeeStatus } from '../types';
+import { Employee, EmployeeStatus, LikePlatformMode } from '../types';
 import { DEFAULT_EMPLOYEES } from '../data/defaultEmployees';
-import { compareDivisions } from '../utils/likersParser';
+import {
+  compareDivisions,
+  matchEmployeeByNameForImport,
+  normalizeUsername,
+} from '../utils/likersParser';
 
 interface EmployeeManagerProps {
   employees: Employee[];
   setEmployees: (employees: Employee[]) => void;
   compactMode?: boolean;
+  likePlatform?: LikePlatformMode;
+  setLikePlatform?: (mode: LikePlatformMode) => void;
+  openFbImportSignal?: number;
   onNavigateToRekap: () => void;
 }
 
-export function EmployeeManager({ employees, setEmployees, compactMode = false, onNavigateToRekap }: EmployeeManagerProps) {
+export function EmployeeManager({
+  employees,
+  setEmployees,
+  likePlatform = 'instagram',
+  setLikePlatform,
+  openFbImportSignal = 0,
+}: EmployeeManagerProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDivisi, setSelectedDivisi] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
-  const [selectedQuotaFilter, setSelectedQuotaFilter] = useState<'ALL' | 'UNMET' | 'MET' | 'EXEMPT'>('ALL');
+  const [selectedQuotaFilter, setSelectedQuotaFilter] = useState<
+    'ALL' | 'UNMET' | 'MET' | 'EXEMPT' | 'MISSING_FB'
+  >('ALL');
+  const [accountViewFilter, setAccountViewFilter] = useState<'both' | 'instagram' | 'facebook'>('both');
   const [dailyQuotaTarget, setDailyQuotaTarget] = useState<number>(7);
 
-  // Modal State
+  // Toast / Inline Notification Banner (replaces window.alert)
+  const [bannerNotice, setBannerNotice] = useState<{
+    type: 'success' | 'error' | 'info';
+    text: string;
+  } | null>(null);
+
+  const showNotice = (type: 'success' | 'error' | 'info', text: string) => {
+    setBannerNotice({ type, text });
+    setTimeout(() => {
+      setBannerNotice((prev) => (prev?.text === text ? null : prev));
+    }, 4500);
+  };
+
+  // Confirm Dialog State (replaces window.confirm)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  // Add / Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-
-  // Form State
   const [formDivisi, setFormDivisi] = useState<string>('KASIR');
   const [formNama, setFormNama] = useState<string>('');
   const [formUsername1, setFormUsername1] = useState<string>('');
   const [formUsername2, setFormUsername2] = useState<string>('');
+  const [formFbUsername1, setFormFbUsername1] = useState<string>('');
+  const [formFbUsername2, setFormFbUsername2] = useState<string>('');
   const [formStatus, setFormStatus] = useState<EmployeeStatus>('Normal');
   const [formKeterangan, setFormKeterangan] = useState<string>('');
+  const [formError, setFormError] = useState<string | null>(null);
 
-  // Google Sheets Import & Sync Modal
+  // Google Sheets Full Employee Import & Sync Modal
   const [isSheetSyncOpen, setIsSheetSyncOpen] = useState<boolean>(false);
   const [syncTab, setSyncTab] = useState<'paste' | 'url' | 'guide'>('paste');
   const [rawSheetText, setRawSheetText] = useState<string>('');
@@ -55,20 +95,40 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
   const [syncMode, setSyncMode] = useState<'replace' | 'append'>('replace');
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Parse raw pasted spreadsheet text
+  // =========================================================
+  // DEDICATED FACEBOOK USERNAME IMPORT MODAL STATE
+  // (Maps FB usernames onto EXISTING employees — headcount stays 100% identical!)
+  // =========================================================
+  const [isFbImportOpen, setIsFbImportOpen] = useState<boolean>(false);
+  const [fbImportTab, setFbImportTab] = useState<'by_name' | 'by_order'>('by_name');
+  const [rawFbImportText, setRawFbImportText] = useState<string>('');
+  const [fbOrderDivisi, setFbOrderDivisi] = useState<string>('ALL');
+  const [manualFbRowTargetOverrides, setManualFbRowTargetOverrides] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    if (openFbImportSignal > 0) {
+      setIsFbImportOpen(true);
+    }
+  }, [openFbImportSignal]);
+
+  // Divisions list
+  const divisionList = useMemo(() => {
+    const set = new Set<string>();
+    employees.forEach((e) => set.add(e.divisi));
+    return Array.from(set).sort(compareDivisions);
+  }, [employees]);
+
+  // Parse raw pasted spreadsheet text (supports both IG-only 6 cols and IG+FB 8 cols, preserving existing FB accounts on match!)
   const parsedSheetEmployees = useMemo(() => {
     if (!rawSheetText.trim()) return [];
 
     const lines = rawSheetText.trim().split(/\r?\n/);
     const results: Employee[] = [];
 
-    const validStatuses: EmployeeStatus[] = ['Normal', 'Cuti', 'Off', 'Izin', 'Sakit', 'HP Hilang'];
-
     lines.forEach((line, index) => {
       const trimmed = line.trim();
       if (!trimmed) return;
 
-      // Split by tab (standard for Google Sheets copy-paste) or comma / semicolon
       let cols: string[] = [];
       if (line.includes('\t')) {
         cols = line.split('\t').map((c) => c.trim().replace(/^["']|["']$/g, ''));
@@ -80,14 +140,12 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
         cols = [trimmed];
       }
 
-      // Check if this line is header
       const firstCol = (cols[0] || '').toLowerCase();
       const secondCol = (cols[1] || '').toLowerCase();
       const thirdCol = (cols[2] || '').toLowerCase();
       if (
         firstCol.includes('divisi') ||
         firstCol.includes('departemen') ||
-        firstCol.includes('department') ||
         firstCol === 'no' ||
         firstCol === 'no.' ||
         secondCol.includes('departemen') ||
@@ -96,13 +154,15 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
         thirdCol.includes('nama') ||
         firstCol.includes('nama')
       ) {
-        return; // Skip header row
+        return;
       }
 
       let divisi = 'UMUM';
       let nama = '';
       let username1 = '';
       let username2 = '';
+      let fbUsername1 = '';
+      let fbUsername2 = '';
       let status: EmployeeStatus = 'Normal';
       let keterangan = '';
 
@@ -118,57 +178,63 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
         return 'Normal';
       };
 
-      // Check if Column 0 is a row number (e.g. "1", "2", "3")
       const isFirstColNumber = /^\d+$/.test(cols[0]?.trim());
+      const offset = isFirstColNumber ? 1 : 0;
+      const effCols = cols.slice(offset);
 
-      if (isFirstColNumber && cols.length >= 4) {
-        // Pattern: [No] [Divisi] [Nama] [Username 1] [Username 2] [Status] [Keterangan]
-        divisi = cols[1]?.toUpperCase() || 'UMUM';
-        nama = cols[2] || '';
-        username1 = cols[3]?.replace(/^@+/, '').toLowerCase() || '';
-        username2 = cols[4]?.replace(/^@+/, '').toLowerCase() || '';
-        if (cols[5]) {
-          status = matchStatus(cols[5]);
-        }
-        keterangan = cols.slice(6).join(', ').trim();
-      } else if (cols.length >= 5) {
-        // Pattern: [Divisi] [Nama] [Username 1] [Username 2] [Status] [Keterangan]
-        divisi = cols[0]?.toUpperCase() || 'UMUM';
-        nama = cols[1] || '';
-        username1 = cols[2]?.replace(/^@+/, '').toLowerCase() || '';
-        username2 = cols[3]?.replace(/^@+/, '').toLowerCase() || '';
-        status = matchStatus(cols[4]);
-        keterangan = cols.slice(5).join(', ').trim();
-      } else if (cols.length === 4) {
-        divisi = cols[0]?.toUpperCase() || 'UMUM';
-        nama = cols[1] || '';
-        username1 = cols[2]?.replace(/^@+/, '').toLowerCase() || '';
-        const fourth = cols[3]?.trim();
+      if (effCols.length >= 7) {
+        // [Divisi] [Nama] [IG1] [IG2] [Status] [Keterangan] [FB1] [FB2]
+        divisi = effCols[0]?.toUpperCase() || 'UMUM';
+        nama = effCols[1] || '';
+        username1 = normalizeUsername(effCols[2] || '');
+        username2 = normalizeUsername(effCols[3] || '');
+        status = matchStatus(effCols[4]);
+        keterangan = effCols[5] || '';
+        fbUsername1 = (effCols[6] || '').trim();
+        fbUsername2 = (effCols[7] || '').trim();
+      } else if (effCols.length >= 5) {
+        divisi = effCols[0]?.toUpperCase() || 'UMUM';
+        nama = effCols[1] || '';
+        username1 = normalizeUsername(effCols[2] || '');
+        username2 = normalizeUsername(effCols[3] || '');
+        status = matchStatus(effCols[4]);
+        keterangan = effCols.slice(5).join(', ').trim();
+      } else if (effCols.length === 4) {
+        divisi = effCols[0]?.toUpperCase() || 'UMUM';
+        nama = effCols[1] || '';
+        username1 = normalizeUsername(effCols[2] || '');
+        const fourth = effCols[3]?.trim() || '';
         const detectedSt = matchStatus(fourth);
         if (detectedSt !== 'Normal' || fourth.toLowerCase() === 'normal') {
           status = detectedSt;
         } else {
-          username2 = fourth?.replace(/^@+/, '').toLowerCase() || '';
+          username2 = normalizeUsername(fourth);
         }
-      } else if (cols.length === 3) {
-        divisi = cols[0]?.toUpperCase() || 'UMUM';
-        nama = cols[1] || '';
-        username1 = cols[2]?.replace(/^@+/, '').toLowerCase() || '';
-      } else if (cols.length === 2) {
-        nama = cols[0] || '';
-        username1 = cols[1]?.replace(/^@+/, '').toLowerCase() || '';
-      } else if (cols.length === 1 && cols[0]) {
-        nama = cols[0];
-        username1 = cols[0].toLowerCase().replace(/\s+/g, '_');
+      } else if (effCols.length === 3) {
+        divisi = effCols[0]?.toUpperCase() || 'UMUM';
+        nama = effCols[1] || '';
+        username1 = normalizeUsername(effCols[2] || '');
+      } else if (effCols.length === 2) {
+        nama = effCols[0] || '';
+        username1 = normalizeUsername(effCols[1] || '');
       }
 
       if (nama.trim() || username1.trim()) {
+        // Preserve existing FB account if employee already existed in DB and sheet didn't specify FB
+        const existingMatch = employees.find(
+          (e) =>
+            e.nama.trim().toLowerCase() === nama.trim().toLowerCase() &&
+            e.divisi.trim().toUpperCase() === divisi.trim().toUpperCase()
+        );
+
         results.push({
-          id: `EMP-SHT-${Date.now().toString().slice(-4)}-${index + 1}`,
+          id: existingMatch?.id || `EMP-SHT-${Date.now().toString().slice(-4)}-${index + 1}`,
           divisi: divisi.trim() || 'UMUM',
           nama: nama.trim() || username1,
-          username1: username1.trim() || nama.toLowerCase().replace(/\s+/g, '_'),
-          username2: username2.trim() || undefined,
+          username1: username1.trim() || existingMatch?.username1 || nama.toLowerCase().replace(/\s+/g, '_'),
+          username2: username2.trim() || existingMatch?.username2 || undefined,
+          fbUsername1: fbUsername1 || existingMatch?.fbUsername1 || undefined,
+          fbUsername2: fbUsername2 || existingMatch?.fbUsername2 || undefined,
           status,
           keterangan: keterangan.trim() || undefined,
         });
@@ -176,31 +242,220 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
     });
 
     return results;
-  }, [rawSheetText]);
+  }, [rawSheetText, employees]);
 
-  // Apply parsed data to database
+  // Parse Dedicated Facebook Username Import (Mode 1: By Employee Name, Mode 2: By Row Order)
+  const targetEmployeesForOrder = useMemo(() => {
+    if (fbOrderDivisi === 'ALL') return employees;
+    return employees.filter((e) => e.divisi === fbOrderDivisi);
+  }, [employees, fbOrderDivisi]);
+
+  const parsedFbImportRows = useMemo(() => {
+    if (!rawFbImportText.trim()) return [];
+    const lines = rawFbImportText.split(/\r?\n/);
+
+    if (fbImportTab === 'by_order') {
+      // 1 line = 1 employee row in targetEmployeesForOrder
+      const nonEmptyLines = lines.map((l) => l.trim()).filter(Boolean);
+      return nonEmptyLines.map((line, idx) => {
+        // Skip header if first line says "Username FB" or "Facebook"
+        const targetEmp = targetEmployeesForOrder[idx] || null;
+        let fb1 = line;
+        let fb2 = '';
+        if (line.includes('\t')) {
+          const parts = line.split('\t').map((p) => p.trim());
+          fb1 = parts[0] || '';
+          fb2 = parts[1] || '';
+        } else if (line.includes('|')) {
+          const parts = line.split('|').map((p) => p.trim());
+          fb1 = parts[0] || '';
+          fb2 = parts[1] || '';
+        }
+
+        return {
+          rowIndex: idx,
+          rawInputName: targetEmp ? targetEmp.nama : `Baris #${idx + 1}`,
+          fb1: fb1.replace(/^["']|["']$/g, '').trim(),
+          fb2: fb2.replace(/^["']|["']$/g, '').trim(),
+          matchedEmployee: targetEmp,
+          matchStatus: (targetEmp ? 'exact' : 'not_found') as 'exact' | 'similar' | 'ambiguous' | 'not_found',
+          candidates: targetEmp ? [targetEmp] : [],
+          note: targetEmp ? undefined : 'Melebihi jumlah karyawan pada filter ini (diabaikan)',
+        };
+      });
+    }
+
+    // Mode 'by_name': [Nama] [Separator] [FB 1] [Optional FB 2] OR [No] [Divisi] [Nama] [FB 1] [FB 2]
+    const output: Array<{
+      rowIndex: number;
+      rawInputName: string;
+      fb1: string;
+      fb2: string;
+      matchedEmployee: Employee | null;
+      matchStatus: 'exact' | 'similar' | 'ambiguous' | 'not_found';
+      candidates: Employee[];
+      note?: string;
+    }> = [];
+
+    lines.forEach((rawLine, idx) => {
+      const trimmed = rawLine.trim();
+      if (!trimmed) return;
+
+      let cols: string[] = [];
+      if (trimmed.includes('\t')) {
+        cols = trimmed.split('\t').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+      } else if (trimmed.includes('|')) {
+        cols = trimmed.split('|').map((c) => c.trim());
+      } else if (/[-:=]/.test(trimmed) && !trimmed.includes('facebook.com')) {
+        const sepMatch = trimmed.match(/^([^:=\-]+?)\s*[:=\-]\s*(.+)$/);
+        if (sepMatch) {
+          cols = [sepMatch[1].trim(), ...sepMatch[2].split(',').map((s) => s.trim())];
+        }
+      } else if (trimmed.includes(',')) {
+        cols = trimmed.split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+      }
+
+      if (cols.length < 2) return;
+
+      // Skip obvious header row
+      const c0 = (cols[0] || '').toLowerCase();
+      const c1 = (cols[1] || '').toLowerCase();
+      if (
+        (c0 === 'no' || c0 === 'no.' || c0.includes('nama') || c0.includes('divisi')) &&
+        (c1.includes('nama') || c1.includes('fb') || c1.includes('facebook') || c1.includes('divisi'))
+      ) {
+        return;
+      }
+
+      let divPart = '';
+      let namePart = '';
+      let fb1 = '';
+      let fb2 = '';
+
+      const isFirstNum = /^\d+$/.test(cols[0]);
+      const eff = isFirstNum ? cols.slice(1) : cols;
+
+      if (eff.length >= 3) {
+        // Could be [Divisi, Nama, FB1, FB2?] OR [Nama, FB1, FB2]
+        const looksLikeDiv = divisionList.some(
+          (d) => d.toUpperCase() === eff[0].toUpperCase() || eff[0].toUpperCase().includes('NGK') || eff[0].toUpperCase().includes('ADMIN') || eff[0].toUpperCase().includes('ELEKT') || eff[0].toUpperCase().includes('PROMOTOR')
+        );
+        if (looksLikeDiv) {
+          divPart = eff[0];
+          namePart = eff[1];
+          fb1 = eff[2] || '';
+          fb2 = eff[3] || '';
+        } else {
+          namePart = eff[0];
+          fb1 = eff[1] || '';
+          fb2 = eff[2] || '';
+        }
+      } else if (eff.length === 2) {
+        namePart = eff[0];
+        fb1 = eff[1];
+      }
+
+      if (!namePart || !fb1) return;
+
+      const overrideEmpId = manualFbRowTargetOverrides[idx];
+      if (overrideEmpId) {
+        const overriddenEmp = employees.find((e) => e.id === overrideEmpId) || null;
+        output.push({
+          rowIndex: idx,
+          rawInputName: namePart,
+          fb1,
+          fb2,
+          matchedEmployee: overriddenEmp,
+          matchStatus: overriddenEmp ? 'exact' : 'not_found',
+          candidates: overriddenEmp ? [overriddenEmp] : [],
+          note: 'Dipilih manual oleh pengguna',
+        });
+        return;
+      }
+
+      const matchRes = matchEmployeeByNameForImport(namePart, divPart, employees);
+      output.push({
+        rowIndex: idx,
+        rawInputName: divPart ? `${namePart} (${divPart})` : namePart,
+        fb1,
+        fb2,
+        matchedEmployee: matchRes.matchedEmployee,
+        matchStatus: matchRes.matchStatus,
+        candidates: matchRes.candidates,
+        note: matchRes.note,
+      });
+    });
+
+    return output;
+  }, [rawFbImportText, fbImportTab, targetEmployeesForOrder, employees, divisionList, manualFbRowTargetOverrides]);
+
+  const handleApplyFbImport = () => {
+    const validRows = parsedFbImportRows.filter((r) => r.matchedEmployee && r.fb1.trim());
+    if (validRows.length === 0) {
+      showNotice('error', 'Belum ada baris Username Facebook yang cocok dengan karyawan. Periksa format tempel di bawah.');
+      return;
+    }
+
+    const updatesByEmpId = new Map<string, { fb1: string; fb2?: string }>();
+    for (const row of validRows) {
+      if (row.matchedEmployee) {
+        updatesByEmpId.set(row.matchedEmployee.id, {
+          fb1: row.fb1.trim(),
+          fb2: row.fb2.trim() || undefined,
+        });
+      }
+    }
+
+    const nextEmployees = employees.map((emp) => {
+      const upd = updatesByEmpId.get(emp.id);
+      if (!upd) return emp;
+      return {
+        ...emp,
+        fbUsername1: upd.fb1,
+        fbUsername2: upd.fb2 !== undefined ? upd.fb2 : emp.fbUsername2,
+      };
+    });
+
+    setEmployees(nextEmployees);
+    setIsFbImportOpen(false);
+    setRawFbImportText('');
+    setManualFbRowTargetOverrides({});
+    showNotice(
+      'success',
+      `Berhasil menyimpan Username Facebook untuk ${updatesByEmpId.size} karyawan! Total karyawan tetap ${employees.length} staf (akun IG tetap aman).`
+    );
+  };
+
   const handleApplyParsedSheet = () => {
     if (parsedSheetEmployees.length === 0) {
-      setSyncMessage({ type: 'error', text: 'Tidak ada data valid yang dapat diproses. Pastikan Anda menempel baris tabel dari Google Sheet.' });
+      setSyncMessage({
+        type: 'error',
+        text: 'Tidak ada data valid yang dapat diproses. Pastikan Anda menempel baris tabel dari Google Sheet.',
+      });
       return;
     }
 
     if (syncMode === 'replace') {
       setEmployees(parsedSheetEmployees);
-      setSyncMessage({ type: 'success', text: `Sukses! Seluruh database digantikan dengan ${parsedSheetEmployees.length} karyawan dari Google Sheet Anda.` });
+      setSyncMessage({
+        type: 'success',
+        text: `Sukses! Database diperbarui dengan ${parsedSheetEmployees.length} karyawan.`,
+      });
     } else {
       setEmployees([...employees, ...parsedSheetEmployees]);
-      setSyncMessage({ type: 'success', text: `Sukses! ${parsedSheetEmployees.length} karyawan baru ditambahkan ke database.` });
+      setSyncMessage({
+        type: 'success',
+        text: `Sukses! ${parsedSheetEmployees.length} karyawan ditambahkan.`,
+      });
     }
 
     setTimeout(() => {
       setIsSheetSyncOpen(false);
       setRawSheetText('');
       setSyncMessage(null);
-    }, 1200);
+    }, 1000);
   };
 
-  // Fetch live from Google Sheets URL (CSV Export link or Web App)
   const handleFetchSheetUrl = async () => {
     if (!sheetUrl.trim()) {
       setSyncMessage({ type: 'error', text: 'Masukkan tautan Google Sheet terlebih dahulu.' });
@@ -212,13 +467,9 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
 
     try {
       let targetUrl = sheetUrl.trim();
-      
-      // Auto convert standard Google Sheet URL to CSV export link if applicable
-      // Example: https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0 -> export?format=csv
       const match = targetUrl.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
       if (match && !targetUrl.includes('export?format=csv') && !targetUrl.includes('pub?output=csv')) {
         const id = match[1];
-        // check gid
         const gidMatch = targetUrl.match(/gid=([0-9]+)/);
         const gid = gidMatch ? gidMatch[1] : '0';
         targetUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
@@ -226,30 +477,36 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
 
       const res = await fetch(targetUrl);
       if (!res.ok) {
-        throw new Error(`Gagal mengambil data (HTTP ${res.status}). Pastikan Google Sheet Anda diatur ke "Siapa saja yang memiliki link dapat melihat" atau gunakan metode Copy-Paste.`);
+        throw new Error(`Gagal mengambil data (HTTP ${res.status}). Gunakan metode Copy-Paste Langsung.`);
       }
 
       const text = await res.text();
       setRawSheetText(text);
       setSyncTab('paste');
-      setSyncMessage({ type: 'success', text: 'Data Google Sheets berhasil diunduh! Silakan periksa pratinjau di bawah lalu klik Terapkan.' });
+      setSyncMessage({
+        type: 'success',
+        text: 'Data Google Sheets berhasil diunduh! Periksa pratinjau lalu klik Terapkan.',
+      });
     } catch (err: any) {
-      setSyncMessage({ 
-        type: 'error', 
-        text: err.message || 'Gagal terhubung ke Google Sheet. Kami menyarankan menggunakan tab "Copy-Paste Langsung" yang bekerja 100% instan tanpa perlu akses publik.' 
+      setSyncMessage({
+        type: 'error',
+        text: err.message || 'Gagal terhubung ke Google Sheet. Gunakan tab Copy-Paste Langsung.',
       });
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Quota and status stats
+  // Quota and social media completeness stats
   const quotaStats = useMemo(() => {
     const totalStaff = employees.length;
     const normalStaff = employees.filter((e) => e.status === 'Normal');
     const unmetQuota = employees.filter((e) => e.status === 'Normal' && !e.hasMetDailyQuota);
     const metQuota = employees.filter((e) => e.status === 'Normal' && Boolean(e.hasMetDailyQuota));
     const exemptStaff = employees.filter((e) => e.status !== 'Normal');
+    const igFilled = employees.filter((e) => Boolean(e.username1?.trim())).length;
+    const fbFilled = employees.filter((e) => Boolean(e.fbUsername1?.trim())).length;
+    const missingFb = totalStaff - fbFilled;
 
     return {
       totalStaff,
@@ -257,26 +514,23 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
       unmetCount: unmetQuota.length,
       metCount: metQuota.length,
       exemptCount: exemptStaff.length,
-      unmetPercent: normalStaff.length > 0 ? Math.round((unmetQuota.length / normalStaff.length) * 100) : 0,
+      igFilled,
+      fbFilled,
+      missingFb,
       metPercent: normalStaff.length > 0 ? Math.round((metQuota.length / normalStaff.length) * 100) : 0,
     };
   }, [employees]);
 
-  // Divisions list (sorted with branch priority: NGK -> WRJ -> KTSN)
-  const divisionList = useMemo(() => {
-    const set = new Set<string>();
-    employees.forEach((e) => set.add(e.divisi));
-    return Array.from(set).sort(compareDivisions);
-  }, [employees]);
-
-  // Filtered employees including Quota Filter
   const filteredEmployees = useMemo(() => {
+    const q = searchQuery.toLowerCase();
     return employees.filter((emp) => {
       const matchQuery =
-        emp.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        emp.username1.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (emp.username2 && emp.username2.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        emp.divisi.toLowerCase().includes(searchQuery.toLowerCase());
+        emp.nama.toLowerCase().includes(q) ||
+        emp.username1.toLowerCase().includes(q) ||
+        (emp.username2 && emp.username2.toLowerCase().includes(q)) ||
+        (emp.fbUsername1 && emp.fbUsername1.toLowerCase().includes(q)) ||
+        (emp.fbUsername2 && emp.fbUsername2.toLowerCase().includes(q)) ||
+        emp.divisi.toLowerCase().includes(q);
 
       const matchDiv = selectedDivisi === 'ALL' || emp.divisi === selectedDivisi;
       const matchStatus = selectedStatus === 'ALL' || emp.status === selectedStatus;
@@ -288,24 +542,22 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
         matchQuota = emp.status === 'Normal' && Boolean(emp.hasMetDailyQuota);
       } else if (selectedQuotaFilter === 'EXEMPT') {
         matchQuota = emp.status !== 'Normal';
+      } else if (selectedQuotaFilter === 'MISSING_FB') {
+        matchQuota = !emp.fbUsername1?.trim();
       }
 
       return matchQuery && matchDiv && matchStatus && matchQuota;
     });
   }, [employees, searchQuery, selectedDivisi, selectedStatus, selectedQuotaFilter]);
 
-  // Toggle single employee quota
   const handleToggleEmployeeQuota = (id: string) => {
     setEmployees(
       employees.map((emp) =>
-        emp.id === id
-          ? { ...emp, hasMetDailyQuota: !emp.hasMetDailyQuota }
-          : emp
+        emp.id === id ? { ...emp, hasMetDailyQuota: !emp.hasMetDailyQuota } : emp
       )
     );
   };
 
-  // Bulk mark normal employees as met quota
   const handleMarkAllMetQuota = (isMet: boolean) => {
     setEmployees(
       employees.map((emp) =>
@@ -314,43 +566,51 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
     );
   };
 
-  // Open modal for add
   const handleOpenAdd = () => {
     setEditingEmployee(null);
     setFormDivisi(divisionList[0] || 'KASIR');
     setFormNama('');
     setFormUsername1('');
     setFormUsername2('');
+    setFormFbUsername1('');
+    setFormFbUsername2('');
     setFormStatus('Normal');
     setFormKeterangan('');
+    setFormError(null);
     setIsModalOpen(true);
   };
 
-  // Open modal for edit
   const handleOpenEdit = (emp: Employee) => {
     setEditingEmployee(emp);
     setFormDivisi(emp.divisi);
     setFormNama(emp.nama);
-    setFormUsername1(emp.username1);
+    setFormUsername1(emp.username1 || '');
     setFormUsername2(emp.username2 || '');
+    setFormFbUsername1(emp.fbUsername1 || '');
+    setFormFbUsername2(emp.fbUsername2 || '');
     setFormStatus(emp.status);
     setFormKeterangan(emp.keterangan || '');
+    setFormError(null);
     setIsModalOpen(true);
   };
 
-  // Save Add/Edit
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formNama.trim() || !formUsername1.trim()) {
-      alert('Nama karyawan dan Username 1 wajib diisi!');
+    if (!formNama.trim()) {
+      setFormError('Nama karyawan wajib diisi.');
+      return;
+    }
+    if (!formUsername1.trim() && !formFbUsername1.trim()) {
+      setFormError('Isi minimal salah satu akun sosial media (Username IG 1 atau Akun FB 1).');
       return;
     }
 
-    const cleanU1 = formUsername1.trim().replace(/^@+/, '').toLowerCase();
-    const cleanU2 = formUsername2.trim().replace(/^@+/, '').toLowerCase();
+    const cleanU1 = normalizeUsername(formUsername1);
+    const cleanU2 = normalizeUsername(formUsername2);
+    const cleanFb1 = formFbUsername1.trim();
+    const cleanFb2 = formFbUsername2.trim();
 
     if (editingEmployee) {
-      // Update
       const updated = employees.map((emp) =>
         emp.id === editingEmployee.id
           ? {
@@ -358,78 +618,105 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
               divisi: formDivisi.trim().toUpperCase(),
               nama: formNama.trim(),
               username1: cleanU1,
-              username2: cleanU2,
+              username2: cleanU2 || undefined,
+              fbUsername1: cleanFb1 || undefined,
+              fbUsername2: cleanFb2 || undefined,
               status: formStatus,
-              keterangan: formKeterangan.trim(),
+              keterangan: formKeterangan.trim() || undefined,
             }
           : emp
       );
       setEmployees(updated);
+      showNotice('success', `Data karyawan "${formNama.trim()}" berhasil diperbarui.`);
     } else {
-      // Create new
       const newEmp: Employee = {
         id: `EMP-${Date.now().toString().slice(-4)}`,
         divisi: formDivisi.trim().toUpperCase(),
         nama: formNama.trim(),
         username1: cleanU1,
-        username2: cleanU2,
+        username2: cleanU2 || undefined,
+        fbUsername1: cleanFb1 || undefined,
+        fbUsername2: cleanFb2 || undefined,
         status: formStatus,
-        keterangan: formKeterangan.trim(),
+        keterangan: formKeterangan.trim() || undefined,
       };
       setEmployees([...employees, newEmp]);
+      showNotice('success', `Karyawan baru "${formNama.trim()}" berhasil ditambahkan.`);
     }
 
     setIsModalOpen(false);
   };
 
-  // Delete
   const handleDelete = (id: string, name: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus data karyawan "${name}"?`)) {
-      setEmployees(employees.filter((emp) => emp.id !== id));
-    }
+    setConfirmDialog({
+      title: 'Hapus Karyawan?',
+      message: `Apakah Anda yakin ingin menghapus data karyawan "${name}" dari database?`,
+      confirmLabel: 'Ya, Hapus',
+      onConfirm: () => {
+        setEmployees(employees.filter((emp) => emp.id !== id));
+        setConfirmDialog(null);
+        showNotice('info', `Data karyawan "${name}" telah dihapus.`);
+      },
+    });
   };
 
-  // Quick toggle status
   const handleQuickStatusChange = (id: string, currentStatus: EmployeeStatus) => {
-    const statuses: EmployeeStatus[] = ['Normal', 'Cuti', 'Off', 'Izin', 'Sakit', 'HP Hilang'];
+    const statuses: EmployeeStatus[] = ['Normal', 'Cuti', 'Off', 'Izin', 'Sakit', 'HP Hilang', 'Bebas'];
     const currentIndex = statuses.indexOf(currentStatus);
     const nextStatus = statuses[(currentIndex + 1) % statuses.length];
-
-    setEmployees(
-      employees.map((emp) => (emp.id === id ? { ...emp, status: nextStatus } : emp))
-    );
+    setEmployees(employees.map((emp) => (emp.id === id ? { ...emp, status: nextStatus } : emp)));
   };
 
-  // Reset to default
   const handleResetToDefault = () => {
-    if (confirm('Reset seluruh daftar karyawan kembali ke data contoh default?')) {
-      setEmployees(DEFAULT_EMPLOYEES);
-    }
+    setConfirmDialog({
+      title: 'Reset ke Data Contoh Default?',
+      message: 'Seluruh daftar karyawan (beserta contoh akun IG & FB bawaan) akan dikembalikan ke data awal.',
+      confirmLabel: 'Ya, Reset Default',
+      onConfirm: () => {
+        setEmployees(DEFAULT_EMPLOYEES);
+        setConfirmDialog(null);
+        showNotice('success', 'Database karyawan dikembalikan ke data default.');
+      },
+    });
   };
 
-  // Export to CSV
   const handleExportCSV = () => {
-    const headers = ['Divisi', 'Nama Karyawan', 'Username 1', 'Username 2', 'Status', 'Keterangan'];
+    const headers = [
+      'Divisi',
+      'Nama Karyawan',
+      'Username IG 1',
+      'Username IG 2',
+      'Status',
+      'Keterangan',
+      'Username FB 1',
+      'Username FB 2',
+    ];
     const rows = employees.map((e) => [
       `"${e.divisi}"`,
       `"${e.nama}"`,
-      `"${e.username1}"`,
+      `"${e.username1 || ''}"`,
       `"${e.username2 || ''}"`,
       `"${e.status}"`,
       `"${e.keterangan || ''}"`,
+      `"${e.fbUsername1 || ''}"`,
+      `"${e.fbUsername2 || ''}"`,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Daftar_Karyawan_Monitoring_Like_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute(
+      'download',
+      `Daftar_Karyawan_IG_FB_${new Date().toISOString().slice(0, 10)}.csv`
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Import from CSV
   const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -446,7 +733,6 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
         const line = lines[i].trim();
         if (!line) continue;
 
-        // Basic CSV regex split
         const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map((col) =>
           col.replace(/^"(.*)"$/, '$1').trim()
         );
@@ -456,21 +742,23 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
             id: `EMP-IMP-${i}`,
             divisi: cols[0]?.toUpperCase() || 'UMUM',
             nama: cols[1],
-            username1: cols[2]?.replace(/^@+/, '').toLowerCase() || '',
-            username2: cols[3]?.replace(/^@+/, '').toLowerCase() || '',
-            status: (['Normal', 'Cuti', 'Off', 'Izin', 'Sakit', 'HP Hilang'].includes(cols[4])
+            username1: normalizeUsername(cols[2] || ''),
+            username2: normalizeUsername(cols[3] || '') || undefined,
+            status: (['Normal', 'Cuti', 'Off', 'Izin', 'Sakit', 'HP Hilang', 'Bebas'].includes(cols[4])
               ? cols[4]
               : 'Normal') as EmployeeStatus,
-            keterangan: cols[5] || '',
+            keterangan: cols[5] || undefined,
+            fbUsername1: cols[6] || undefined,
+            fbUsername2: cols[7] || undefined,
           });
         }
       }
 
       if (parsed.length > 0) {
         setEmployees(parsed);
-        alert(`Berhasil mengimpor ${parsed.length} data karyawan dari file CSV!`);
+        showNotice('success', `Berhasil mengimpor ${parsed.length} data karyawan dari file CSV!`);
       } else {
-        alert('Format file CSV tidak sesuai. Pastikan kolom sesuai template.');
+        showNotice('error', 'Format file CSV tidak sesuai. Pastikan kolom sesuai template.');
       }
     };
     reader.readAsText(file);
@@ -478,23 +766,52 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
 
   return (
     <div className="space-y-6">
-      
-      {/* Top Header Card */}
-      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+      {/* Inline Notification Banner */}
+      {bannerNotice && (
+        <div
+          className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between gap-3 shadow-xs ${
+            bannerNotice.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : bannerNotice.type === 'error'
+              ? 'bg-rose-50 border-rose-200 text-rose-900'
+              : 'bg-indigo-50 border-indigo-200 text-indigo-900'
+          }`}
+        >
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wider">
-              Sheet 'Daftar Karyawan'
+            {bannerNotice.type === 'success' ? (
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{bannerNotice.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBannerNotice(null)}
+            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Top Header Card */}
+      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span className="font-bold text-indigo-700 uppercase tracking-wider">
+              Database Terpadu IG &amp; FB
             </span>
-            <span className="text-xs text-slate-500">
-              Total: <strong className="text-slate-800">{employees.length} Staff</strong>
+            <span>&bull;</span>
+            <span>
+              Total Tetap: <strong className="text-slate-900">{employees.length} Karyawan</strong> (1 Karyawan = Akun IG + Akun FB)
             </span>
           </div>
-          <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-1 tracking-tight">
-            Daftar, Status &amp; Target Kuota Like Karyawan
+          <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+            Daftar Karyawan, Akun Instagram &amp; Akun Facebook
           </h2>
           <p className="text-xs text-slate-500 max-w-2xl">
-            Kelola data divisi, nama, username Instagram, status kehadiran, serta indikator kepatuhan kuota like harian berdasarkan target sistem.
+            Jumlah karyawan tidak berubah — setiap staf memiliki kolom <b>Username Instagram</b> dan <b>Username/Nama Facebook</b> terpisah. Gunakan tombol <b>Import Khusus Username FB</b> untuk mengisi akun FB massal ke staf yang sudah ada.
           </p>
         </div>
 
@@ -503,15 +820,29 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
           <button
             type="button"
             onClick={() => {
+              setRawFbImportText('');
+              setManualFbRowTargetOverrides({});
+              setIsFbImportOpen(true);
+            }}
+            className="px-3.5 py-2 bg-[#1877F2] hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-[0.99]"
+            title="Import khusus kolom Username/Nama Facebook ke karyawan yang sudah ada tanpa menambah/mengubah total karyawan"
+          >
+            <ThumbsUp className="w-3.5 h-3.5" />
+            <span>Import Khusus Username FB</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
               setRawSheetText('');
               setSyncMessage(null);
               setIsSheetSyncOpen(true);
             }}
             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-[0.99]"
-            title="Import langsung dari Google Sheet Anda (Copy-Paste / Link)"
+            title="Import data karyawan dari Google Sheet"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>Import dari Google Sheet</span>
+            <span>Import Sheet Karyawan</span>
           </button>
 
           <button
@@ -521,14 +852,13 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
             className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-[0.99]"
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>+ Tambah Manual</span>
+            <span>+ Tambah Staf</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportCSV}
             className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer border border-slate-200"
-            title="Download file CSV untuk Google Sheets"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export CSV</span>
@@ -536,7 +866,7 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
 
           <label className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer border border-slate-200">
             <Upload className="w-3.5 h-3.5" />
-            <span>Import File CSV</span>
+            <span>Import CSV</span>
             <input type="file" accept=".csv" onChange={handleImportCSV} className="hidden" />
           </label>
 
@@ -544,152 +874,173 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
             type="button"
             onClick={handleResetToDefault}
             className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-lg text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
-            title="Kembalikan ke data contoh toko retail"
           >
             Reset Default
           </button>
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* DAILY LIKE QUOTA MONITORING & STATS BANNER                */}
-      {/* ========================================================= */}
+      {/* Stats Grid: Total Staff, IG Coverage, FB Coverage, Quota */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        
-        {/* Card 1: Total Staff */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              Total Database Staff
+              Total Karyawan Tetap
             </span>
             <span className="text-2xl font-black text-slate-900 mt-0.5 block">
               {quotaStats.totalStaff}
             </span>
-            <span className="text-[11px] text-slate-400">
-              {quotaStats.normalCount} Wajib Like • {quotaStats.exemptCount} Bebas
+            <span className="text-[11px] text-slate-500">
+              {quotaStats.normalCount} Wajib Like &bull; {quotaStats.exemptCount} Bebas
             </span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
             <Users className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Card 2: Belum Memenuhi Kuota (HIGHLIGHTED IN RED / WARNING) */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold text-pink-700 uppercase tracking-wider flex items-center gap-1">
+              <Instagram className="w-3.5 h-3.5 text-pink-600" />
+              <span>Akun Instagram Terdata</span>
+            </span>
+            <span className="text-2xl font-black text-slate-900 mt-0.5 block">
+              {quotaStats.igFilled}{' '}
+              <span className="text-xs font-semibold text-slate-500">/ {quotaStats.totalStaff} Staf</span>
+            </span>
+            <span className="text-[11px] text-slate-500">Username IG terpisah dari FB</span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center">
+            <Instagram className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div
+          onClick={() =>
+            setSelectedQuotaFilter(selectedQuotaFilter === 'MISSING_FB' ? 'ALL' : 'MISSING_FB')
+          }
+          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex items-center justify-between ${
+            selectedQuotaFilter === 'MISSING_FB'
+              ? 'bg-blue-50 border-blue-400'
+              : 'bg-white border-slate-200 hover:border-blue-300'
+          }`}
+          title="Klik untuk memfilter staf yang belum memiliki Username Facebook"
+        >
+          <div>
+            <span className="text-[11px] font-bold text-[#1877F2] uppercase tracking-wider flex items-center gap-1">
+              <ThumbsUp className="w-3.5 h-3.5 text-[#1877F2]" />
+              <span>Akun Facebook Terdata</span>
+            </span>
+            <span className="text-2xl font-black text-slate-900 mt-0.5 block">
+              {quotaStats.fbFilled}{' '}
+              <span className="text-xs font-semibold text-slate-500">/ {quotaStats.totalStaff} Staf</span>
+            </span>
+            <span className="text-[11px] font-medium text-blue-700">
+              {quotaStats.missingFb > 0
+                ? `${quotaStats.missingFb} belum diisi (Klik filter)`
+                : 'Semua akun FB lengkap'}
+            </span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#1877F2] flex items-center justify-center">
+            <ThumbsUp className="w-5 h-5" />
+          </div>
+        </div>
+
         <div
           onClick={() => setSelectedQuotaFilter(selectedQuotaFilter === 'UNMET' ? 'ALL' : 'UNMET')}
           className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex items-center justify-between ${
             quotaStats.unmetCount > 0
-              ? 'bg-rose-50/80 border-rose-300 ring-2 ring-rose-400/20 hover:bg-rose-100/80'
-              : 'bg-white border-slate-200 hover:border-slate-300'
+              ? 'bg-rose-50/70 border-rose-200 hover:bg-rose-100/60'
+              : 'bg-white border-slate-200'
           }`}
-          title="Klik untuk filter hanya karyawan yang belum memenuhi kuota like"
         >
           <div>
             <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-              <span>Belum Memenuhi Kuota</span>
+              <span>Belum Penuhi Kuota</span>
             </span>
             <span className="text-2xl font-black text-rose-700 mt-0.5 block">
-              {quotaStats.unmetCount} <span className="text-xs font-semibold text-rose-600">Staff</span>
+              {quotaStats.unmetCount} <span className="text-xs font-semibold text-rose-600">Staf</span>
             </span>
-            <span className="text-[11px] text-rose-600/80 font-medium">
-              {quotaStats.unmetCount > 0 ? '⚠️ Prioritas Follow Up Like!' : 'Semua kuota terpenuhi'}
+            <span className="text-[11px] text-slate-500">
+              {quotaStats.metCount} selesai ({quotaStats.metPercent}%)
             </span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center">
             <AlertCircle className="w-5 h-5" />
           </div>
         </div>
-
-        {/* Card 3: Sudah Memenuhi Kuota (GREEN) */}
-        <div
-          onClick={() => setSelectedQuotaFilter(selectedQuotaFilter === 'MET' ? 'ALL' : 'MET')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex items-center justify-between ${
-            selectedQuotaFilter === 'MET'
-              ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-400/20'
-              : 'bg-white border-slate-200 hover:border-emerald-200'
-          }`}
-          title="Klik untuk filter karyawan yang sudah like"
-        >
-          <div>
-            <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Sudah Memenuhi Kuota</span>
-            </span>
-            <span className="text-2xl font-black text-emerald-700 mt-0.5 block">
-              {quotaStats.metCount} <span className="text-xs font-semibold text-emerald-600">Staff</span>
-            </span>
-            <span className="text-[11px] text-emerald-600/80 font-medium">
-              {quotaStats.metPercent}% Kepatuhan Like
-            </span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-            <Check className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Card 4: Bebas Kuota (Cuti/Off/Izin) */}
-        <div
-          onClick={() => setSelectedQuotaFilter(selectedQuotaFilter === 'EXEMPT' ? 'ALL' : 'EXEMPT')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex items-center justify-between ${
-            selectedQuotaFilter === 'EXEMPT'
-              ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400/20'
-              : 'bg-white border-slate-200 hover:border-amber-200'
-          }`}
-          title="Klik untuk filter karyawan Cuti / Libur / Izin"
-        >
-          <div>
-            <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">
-              Bebas Kuota (Cuti/Off)
-            </span>
-            <span className="text-2xl font-black text-amber-700 mt-0.5 block">
-              {quotaStats.exemptCount} <span className="text-xs font-semibold text-amber-600">Staff</span>
-            </span>
-            <span className="text-[11px] text-slate-500 font-medium">
-              Bebas denda &amp; pengecualian
-            </span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
-            <Sparkles className="w-5 h-5" />
-          </div>
-        </div>
-
       </div>
 
-      {/* Target Setting & Quota Quick Actions Toolbar */}
-      <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-4 rounded-xl text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md border border-indigo-900/40">
+      {/* Target Setting & View Mode Toolbar */}
+      <div className="bg-slate-900 p-4 rounded-xl text-white flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-sm border border-slate-800">
         <div className="flex flex-wrap items-center gap-3">
+          {/* Saklar Tampilan Akun */}
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+            <button
+              type="button"
+              onClick={() => setAccountViewFilter('both')}
+              className={`px-2.5 py-1 rounded-md font-bold cursor-pointer transition-all ${
+                accountViewFilter === 'both'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Tampilkan IG &amp; FB
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAccountViewFilter('instagram');
+                if (setLikePlatform) setLikePlatform('instagram');
+              }}
+              className={`px-2.5 py-1 rounded-md font-bold cursor-pointer transition-all flex items-center gap-1 ${
+                accountViewFilter === 'instagram'
+                  ? 'bg-pink-600 text-white'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Instagram className="w-3 h-3" />
+              <span>Mode IG</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAccountViewFilter('facebook');
+                if (setLikePlatform) setLikePlatform('facebook');
+              }}
+              className={`px-2.5 py-1 rounded-md font-bold cursor-pointer transition-all flex items-center gap-1 ${
+                accountViewFilter === 'facebook'
+                  ? 'bg-[#1877F2] text-white'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <ThumbsUp className="w-3 h-3" />
+              <span>Mode FB</span>
+            </button>
+          </div>
+
           <div className="flex items-center gap-2 text-xs">
-            <span className="font-bold text-amber-300 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Target Kuota Harian:</span>
-            </span>
+            <span className="font-bold text-amber-300">Target Harian:</span>
             <select
               value={dailyQuotaTarget}
               onChange={(e) => setDailyQuotaTarget(Number(e.target.value))}
-              className="bg-black/40 border border-white/20 rounded-lg px-2.5 py-1 text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+              className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-bold text-white focus:outline-none cursor-pointer"
             >
-              <option value={7}>7 Postingan / Hari (100% Full)</option>
+              <option value={7}>7 Postingan / Hari</option>
               <option value={5}>5 Postingan / Hari</option>
               <option value={3}>3 Postingan / Hari</option>
               <option value={1}>Minimal 1 Like / Post</option>
             </select>
           </div>
-
-          <span className="text-slate-400 text-xs hidden sm:inline">•</span>
-
-          <span className="text-xs text-slate-300">
-            Setiap karyawan status <b>Normal</b> yang belum memenuhi kuota di-highlight warna <b>Merah / Oranye</b>.
-          </span>
         </div>
 
-        {/* Quick Bulk Quota Toggles */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <button
             type="button"
             onClick={() => handleMarkAllMetQuota(true)}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-            title="Tandai semua karyawan berstatus normal sudah memenuhi kuota hari ini"
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1"
           >
             <Check className="w-3.5 h-3.5" />
             <span>Tandai Semua Selesai Kuota</span>
@@ -698,8 +1049,7 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
           <button
             type="button"
             onClick={() => handleMarkAllMetQuota(false)}
-            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-slate-200 font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1 border border-white/10"
-            title="Reset status kuota hari ini (kembalikan ke belum memenuhi)"
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1 border border-slate-700"
           >
             <RefreshCw className="w-3 h-3 text-slate-300" />
             <span>Reset Kuota Hari Ini</span>
@@ -707,31 +1057,26 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
         </div>
       </div>
 
-      {/* Filter and Search Bar with Quota Pills */}
+      {/* Filter and Search Bar */}
       <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
-        
-        {/* Search */}
         <div className="relative w-full lg:w-72">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari nama, divisi, atau username..."
+            placeholder="Cari nama, username IG, atau akun FB..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
           />
         </div>
 
-        {/* Quota Status Filter Pills */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-bold text-slate-500 mr-1">Filter Kuota:</span>
-          
           <button
             type="button"
             onClick={() => setSelectedQuotaFilter('ALL')}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               selectedQuotaFilter === 'ALL'
-                ? 'bg-slate-900 text-white shadow-xs'
+                ? 'bg-slate-900 text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
@@ -740,15 +1085,27 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
 
           <button
             type="button"
+            onClick={() => setSelectedQuotaFilter('MISSING_FB')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+              selectedQuotaFilter === 'MISSING_FB'
+                ? 'bg-[#1877F2] text-white'
+                : 'bg-blue-50 text-[#1877F2] hover:bg-blue-100 border border-blue-200'
+            }`}
+          >
+            <ThumbsUp className="w-3 h-3" />
+            <span>Belum Isi FB ({quotaStats.missingFb})</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setSelectedQuotaFilter('UNMET')}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
               selectedQuotaFilter === 'UNMET'
-                ? 'bg-rose-600 text-white shadow-xs'
+                ? 'bg-rose-600 text-white'
                 : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
             }`}
           >
-            <AlertCircle className="w-3 h-3" />
-            <span>⚠️ Belum Memenuhi ({quotaStats.unmetCount})</span>
+            <span>Belum Kuota ({quotaStats.unmetCount})</span>
           </button>
 
           <button
@@ -756,28 +1113,14 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
             onClick={() => setSelectedQuotaFilter('MET')}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
               selectedQuotaFilter === 'MET'
-                ? 'bg-emerald-600 text-white shadow-xs'
+                ? 'bg-emerald-600 text-white'
                 : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
             }`}
           >
-            <Check className="w-3 h-3" />
-            <span>✅ Sudah Memenuhi ({quotaStats.metCount})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSelectedQuotaFilter('EXEMPT')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              selectedQuotaFilter === 'EXEMPT'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
-            }`}
-          >
-            🏖️ Bebas ({quotaStats.exemptCount})
+            <span>Selesai Kuota ({quotaStats.metCount})</span>
           </button>
         </div>
 
-        {/* Division & Status Dropdowns */}
         <div className="flex flex-wrap items-center gap-2 justify-end">
           <select
             value={selectedDivisi}
@@ -785,14 +1128,11 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
             className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-slate-700 font-medium cursor-pointer"
           >
             <option value="ALL">Semua Divisi ({employees.length})</option>
-            {divisionList.map((div) => {
-              const count = employees.filter((e) => e.divisi === div).length;
-              return (
-                <option key={div} value={div}>
-                  {div} ({count})
-                </option>
-              );
-            })}
+            {divisionList.map((div) => (
+              <option key={div} value={div}>
+                {div} ({employees.filter((e) => e.divisi === div).length})
+              </option>
+            ))}
           </select>
 
           <select
@@ -807,24 +1147,28 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
             <option value="Izin">Izin</option>
             <option value="Sakit">Sakit</option>
             <option value="HP Hilang">HP Hilang</option>
+            <option value="Bebas">Bebas</option>
           </select>
         </div>
       </div>
 
-      {/* Employee List Table with Visual Highlight for Unmet Quota */}
+      {/* Employee List Table showing distinct IG & FB Accounts per employee */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-5">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="text-slate-400 border-b border-slate-100 uppercase text-[10px] tracking-wider">
-                <th className="pb-2.5 font-semibold">Divisi</th>
-                <th className="pb-2.5 font-semibold">Nama Karyawan</th>
-                <th className="pb-2.5 font-semibold">Username IG 1</th>
-                <th className="pb-2.5 font-semibold">Username IG 2</th>
-                <th className="pb-2.5 font-semibold text-center">Status Kehadiran</th>
-                <th className="pb-2.5 font-semibold text-center">🎯 Target Kuota Like</th>
-                <th className="pb-2.5 font-semibold">Keterangan</th>
-                <th className="pb-2.5 font-semibold text-right">Aksi</th>
+                <th className="pb-2.5 px-2 font-semibold">Divisi</th>
+                <th className="pb-2.5 px-2 font-semibold">Nama Karyawan</th>
+                {accountViewFilter !== 'facebook' && (
+                  <th className="pb-2.5 px-2 font-semibold text-pink-700">Akun Instagram (IG)</th>
+                )}
+                {accountViewFilter !== 'instagram' && (
+                  <th className="pb-2.5 px-2 font-semibold text-[#1877F2]">Akun Facebook (FB)</th>
+                )}
+                <th className="pb-2.5 px-2 font-semibold text-center">Status Kerja</th>
+                <th className="pb-2.5 px-2 font-semibold text-center">Kuota Like</th>
+                <th className="pb-2.5 px-2 font-semibold text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -839,101 +1183,128 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                       key={emp.id}
                       className={`transition-colors ${
                         isUnmet
-                          ? 'bg-rose-50/50 hover:bg-rose-100/60 border-l-4 border-rose-500'
+                          ? 'bg-rose-50/35 hover:bg-rose-50/70'
                           : isMet
-                          ? 'bg-emerald-50/20 hover:bg-emerald-100/30 border-l-4 border-emerald-500'
-                          : 'hover:bg-slate-50/70 border-l-4 border-slate-300'
+                          ? 'bg-emerald-50/20 hover:bg-emerald-50/50'
+                          : 'hover:bg-slate-50/70'
                       }`}
                     >
-                      <td className="py-3 font-bold text-slate-700">
+                      <td className="py-3 px-2 font-bold text-slate-700">
                         <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[10px] font-semibold">
                           {emp.divisi}
                         </span>
                       </td>
-                      <td className="py-3 font-bold text-slate-900">
+
+                      <td className="py-3 px-2 font-bold text-slate-900">
                         <div className="flex items-center gap-1.5">
-                          {isUnmet && (
-                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title="Belum memenuhi kuota" />
-                          )}
+                          <span
+                            className={`w-2 h-2 rounded-full shrink-0 ${
+                              isUnmet ? 'bg-rose-500' : isMet ? 'bg-emerald-500' : 'bg-slate-300'
+                            }`}
+                          />
                           <span>{emp.nama}</span>
                         </div>
+                        {emp.keterangan && (
+                          <span className="text-[10px] font-normal text-slate-400 block pl-3.5">
+                            {emp.keterangan}
+                          </span>
+                        )}
                       </td>
-                      <td className="py-3 font-mono text-indigo-600 font-medium">
-                        @{emp.username1}
-                      </td>
-                      <td className="py-3 font-mono text-slate-500">
-                        {emp.username2 ? `@${emp.username2}` : '-'}
-                      </td>
-                      <td className="py-3 text-center">
+
+                      {/* INSTAGRAM COLUMN */}
+                      {accountViewFilter !== 'facebook' && (
+                        <td className="py-3 px-2">
+                          {emp.username1 ? (
+                            <div className="space-y-0.5">
+                              <span className="font-mono text-pink-700 font-semibold block">
+                                @{emp.username1}
+                              </span>
+                              {emp.username2 && (
+                                <span className="font-mono text-[10px] text-slate-500 block">
+                                  2: @{emp.username2}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">Belum diisi</span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* FACEBOOK COLUMN */}
+                      {accountViewFilter !== 'instagram' && (
+                        <td className="py-3 px-2">
+                          {emp.fbUsername1 ? (
+                            <div className="space-y-0.5">
+                              <span className="font-semibold text-[#1877F2] block">
+                                {emp.fbUsername1}
+                              </span>
+                              {emp.fbUsername2 && (
+                                <span className="text-[10px] text-slate-500 block">
+                                  2: {emp.fbUsername2}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(emp)}
+                              className="text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                            >
+                              + Isi Akun FB
+                            </button>
+                          )}
+                        </td>
+                      )}
+
+                      <td className="py-3 px-2 text-center">
                         <button
                           type="button"
                           onClick={() => handleQuickStatusChange(emp.id, emp.status)}
-                          title="Klik untuk ubah status cepat (Normal -> Cuti -> Off, dll)"
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-transform hover:scale-105 active:scale-95 ${
+                          title="Klik untuk ubah status kehadiran"
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
                             emp.status === 'Normal'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                              : 'bg-orange-50 text-orange-700 border border-orange-100'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-orange-50 text-orange-700 border border-orange-200'
                           }`}
                         >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                              emp.status === 'Normal' ? 'bg-emerald-500' : 'bg-orange-500'
-                            }`}
-                          />
                           {emp.status}
                         </button>
                       </td>
 
-                      {/* TARGET KUOTA LIKE COLUMN WITH HIGH VISIBILITY HIGHLIGHT */}
-                      <td className="py-3 text-center">
+                      <td className="py-3 px-2 text-center">
                         {isNormal ? (
-                          <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5">
-                            {isUnmet ? (
-                              <button
-                                type="button"
-                                onClick={() => handleToggleEmployeeQuota(emp.id)}
-                                className="px-2.5 py-1 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 hover:bg-rose-200 transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
-                                title="Klik untuk tandai karyawan ini sudah like / memenuhi kuota"
-                              >
-                                <AlertCircle className="w-3 h-3 text-rose-600" />
-                                <span>Belum Like (0/{dailyQuotaTarget})</span>
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleToggleEmployeeQuota(emp.id)}
-                                className="px-2.5 py-1 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition-all flex items-center gap-1 cursor-pointer"
-                                title="Klik untuk membatalkan status kuota like"
-                              >
-                                <Check className="w-3 h-3 text-emerald-600" />
-                                <span>Lengkap ({dailyQuotaTarget}/{dailyQuotaTarget})</span>
-                              </button>
-                            )}
-                          </div>
+                          isUnmet ? (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleEmployeeQuota(emp.id)}
+                              className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 hover:bg-rose-200 cursor-pointer"
+                            >
+                              Belum ({dailyQuotaTarget})
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleEmployeeQuota(emp.id)}
+                              className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200 cursor-pointer"
+                            >
+                              Selesai
+                            </button>
+                          )
                         ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">
+                          <span className="text-[10px] font-semibold text-slate-400">
                             Bebas ({emp.status})
                           </span>
                         )}
                       </td>
 
-                      <td className="py-3 text-slate-500 text-[11px]">
-                        {isUnmet ? (
-                          <span className="text-rose-600 font-bold flex items-center gap-1">
-                            <span>⚠️ Potensi Denda Rp 5.000</span>
-                          </span>
-                        ) : (
-                          emp.keterangan || '-'
-                        )}
-                      </td>
-
-                      <td className="py-3 text-right">
+                      <td className="py-3 px-2 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(emp)}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                            title="Edit Karyawan"
+                            className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Akun IG & FB Karyawan"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
@@ -952,8 +1323,8 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                 })
               ) : (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-slate-400">
-                    Tidak ada data karyawan yang cocok dengan pencarian atau filter kuota.
+                  <td colSpan={7} className="py-10 text-center text-slate-400">
+                    Tidak ada data karyawan yang cocok dengan pencarian atau filter.
                   </td>
                 </tr>
               )}
@@ -963,16 +1334,20 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
       </div>
 
       {/* ========================================================= */}
-      {/* ADD / EDIT EMPLOYEE MODAL DIALOG                          */}
+      {/* ADD / EDIT EMPLOYEE MODAL (WITH SEPARATE IG & FB FIELDS)  */}
       {/* ========================================================= */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[92vh] overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-900">
-                {editingEmployee ? 'Edit Data Karyawan' : 'Tambah Karyawan Baru'}
-              </h3>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  {editingEmployee ? 'Edit Akun IG & FB Karyawan' : 'Tambah Karyawan Baru'}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  1 data karyawan memuat akun Instagram dan akun Facebook secara terpisah
+                </p>
+              </div>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
@@ -981,98 +1356,144 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
               </button>
             </div>
 
+            {formError && (
+              <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium">
+                {formError}
+              </div>
+            )}
+
             <form onSubmit={handleSave} className="space-y-3.5 text-xs">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block" htmlFor="emp-divisi">
-                  Divisi / Departemen <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  id="emp-divisi"
-                  type="text"
-                  required
-                  placeholder="Contoh: KASIR, PRAMUNIAGA, GUDANG, VM, SPV"
-                  value={formDivisi}
-                  onChange={(e) => setFormDivisi(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-bold uppercase text-slate-800"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block" htmlFor="emp-nama">
-                  Nama Lengkap Karyawan <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  id="emp-nama"
-                  type="text"
-                  required
-                  placeholder="Contoh: Siti Rahmawati"
-                  value={formNama}
-                  onChange={(e) => setFormNama(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 font-semibold"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block" htmlFor="emp-u1">
-                    Username IG 1 (Utama) <span className="text-rose-500">*</span>
+                  <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                    Divisi / Departemen <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    id="emp-u1"
                     type="text"
                     required
-                    placeholder="siti_rahma99"
-                    value={formUsername1}
-                    onChange={(e) => setFormUsername1(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-indigo-700 font-medium"
+                    placeholder="ADMIN NGK"
+                    value={formDivisi}
+                    onChange={(e) => setFormDivisi(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-bold uppercase text-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block" htmlFor="emp-u2">
-                    Username IG 2 (Opsional)
+                  <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                    Nama Karyawan <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    id="emp-u2"
                     type="text"
-                    placeholder="sitirahma.real"
-                    value={formUsername2}
-                    onChange={(e) => setFormUsername2(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-slate-600"
+                    required
+                    placeholder="BINTI"
+                    value={formNama}
+                    onChange={(e) => setFormNama(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 font-semibold"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block" htmlFor="emp-status">
-                  Status Karyawan
-                </label>
-                <select
-                  id="emp-status"
-                  value={formStatus}
-                  onChange={(e) => setFormStatus(e.target.value as EmployeeStatus)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-bold text-slate-800 cursor-pointer"
-                >
-                  <option value="Normal">Normal (Wajib Like &amp; Kena Denda jika belum)</option>
-                  <option value="Cuti">Cuti (Pengecualian / Bebas Denda)</option>
-                  <option value="Off">Off / Libur (Pengecualian / Bebas Denda)</option>
-                  <option value="Izin">Izin (Pengecualian / Bebas Denda)</option>
-                  <option value="Sakit">Sakit (Pengecualian / Bebas Denda)</option>
-                  <option value="HP Hilang">HP Hilang / Rusak (Pengecualian / Bebas Denda)</option>
-                </select>
+              {/* AKUN INSTAGRAM BOX */}
+              <div className="p-3.5 rounded-xl bg-pink-50/50 border border-pink-200/80 space-y-2.5">
+                <div className="flex items-center gap-1.5 text-pink-800 font-bold text-xs">
+                  <Instagram className="w-3.5 h-3.5 text-pink-600" />
+                  <span>Akun Instagram (Tanpa @)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">
+                      Username IG 1 (Utama)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="bintiandini"
+                      value={formUsername1}
+                      onChange={(e) => setFormUsername1(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-pink-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none font-mono text-pink-700 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">
+                      Username IG 2 (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="binti.second"
+                      value={formUsername2}
+                      onChange={(e) => setFormUsername2(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none font-mono text-slate-600"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block" htmlFor="emp-ket">
-                  Keterangan Tambahan (Opsional)
-                </label>
-                <input
-                  id="emp-ket"
-                  type="text"
-                  placeholder="Contoh: Shift Pagi, Area Kasir 1"
-                  value={formKeterangan}
-                  onChange={(e) => setFormKeterangan(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-700"
-                />
+              {/* AKUN FACEBOOK BOX */}
+              <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-[#1877F2] font-bold text-xs">
+                    <ThumbsUp className="w-3.5 h-3.5" />
+                    <span>Akun Facebook (Nama Profil FB atau Link/Username FB)</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">
+                      Nama / Username FB 1 (Utama)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Binti Andini"
+                      value={formFbUsername1}
+                      onChange={(e) => setFormFbUsername1(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-blue-800 font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">
+                      Akun FB 2 (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Akun FB kedua / link profil"
+                      value={formFbUsername2}
+                      onChange={(e) => setFormFbUsername2(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                    Status Kehadiran
+                  </label>
+                  <select
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value as EmployeeStatus)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none font-bold text-slate-800 cursor-pointer"
+                  >
+                    <option value="Normal">Normal (Wajib Like)</option>
+                    <option value="Cuti">Cuti (Bebas Denda)</option>
+                    <option value="Off">Off / Libur (Bebas Denda)</option>
+                    <option value="Izin">Izin (Bebas Denda)</option>
+                    <option value="Sakit">Sakit (Bebas Denda)</option>
+                    <option value="HP Hilang">HP Hilang (Bebas Denda)</option>
+                    <option value="Bebas">Bebas</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                    Keterangan (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Shift Pagi"
+                    value={formKeterangan}
+                    onChange={(e) => setFormKeterangan(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-slate-700"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
@@ -1091,19 +1512,302 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                 </button>
               </div>
             </form>
-
           </div>
         </div>
       )}
 
       {/* ========================================================= */}
-      {/* GOOGLE SHEETS IMPORT & SYNC MODAL                         */}
+      {/* DEDICATED FACEBOOK USERNAME IMPORT MODAL                  */}
+      {/* ========================================================= */}
+      {isFbImportOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3.5 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#1877F2] text-white flex items-center justify-center shadow-sm shrink-0">
+                  <ThumbsUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Import Khusus Username / Nama Akun Facebook
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Total karyawan tetap <b>{employees.length} staf</b> (tidak menambah/mengubah jumlah karyawan &amp; tidak menimpa akun Instagram).
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFbImportOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mode Switcher */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold shrink-0">
+              <button
+                type="button"
+                onClick={() => setFbImportTab('by_name')}
+                className={`py-2 px-3 rounded-lg transition-all cursor-pointer ${
+                  fbImportTab === 'by_name'
+                    ? 'bg-white text-[#1877F2] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                1. Pasangkan Otomatis via Nama Karyawan (Sheet / WA)
+              </button>
+              <button
+                type="button"
+                onClick={() => setFbImportTab('by_order')}
+                className={`py-2 px-3 rounded-lg transition-all cursor-pointer ${
+                  fbImportTab === 'by_order'
+                    ? 'bg-white text-[#1877F2] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                2. Tempel 1 Kolom Urut Baris Karyawan
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar text-xs">
+              {fbImportTab === 'by_name' ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <label className="font-bold text-slate-700">
+                      Tempel Daftar Nama Karyawan beserta Nama Akun Facebook-nya:
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sample = employees
+                          .slice(0, 8)
+                          .map(
+                            (e) =>
+                              `${e.divisi}\t${e.nama}\t${e.fbUsername1 || `${e.nama.charAt(0)}${e.nama.slice(1).toLowerCase()} Official`}`
+                          )
+                          .join('\n');
+                        setRawFbImportText(sample);
+                      }}
+                      className="text-[11px] font-bold text-[#1877F2] hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Isi Contoh Format dari Staf Anda</span>
+                    </button>
+                  </div>
+
+                  <textarea
+                    rows={5}
+                    value={rawFbImportText}
+                    onChange={(e) => setRawFbImportText(e.target.value)}
+                    placeholder={`Mendukung copy-paste langsung dari Google Sheets / Excel / WhatsApp:\nBINTI - Binti Andini\nMEGA - Megawati Sun\nPUTRI FL\tPutri Rahayu\nFERY OPPO : Papa Athalla`}
+                    className="w-full px-3.5 py-2.5 font-mono text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Pemisah otomatis: <b>Tab (Copy Sheet/Excel)</b>, tanda strip (<code>Nama - Akun FB</code>), titik dua (<code>Nama : Akun FB</code>), atau koma. Jika ada nama staf yang mirip/kembar, Anda dapat memilih staf yang tepat pada tabel pratinjau di bawah.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2 bg-blue-50/70 p-3 rounded-xl border border-blue-200">
+                    <div>
+                      <span className="font-bold text-slate-800 block">
+                        Pilih Urutan Divisi Target ({targetEmployeesForOrder.length} Staf):
+                      </span>
+                      <span className="text-[11px] text-slate-600">
+                        Baris ke-1 akan masuk ke staf urutan ke-1, baris ke-2 ke staf urutan ke-2, dst.
+                      </span>
+                    </div>
+                    <select
+                      value={fbOrderDivisi}
+                      onChange={(e) => setFbOrderDivisi(e.target.value)}
+                      className="px-3 py-1.5 bg-white border border-blue-300 rounded-lg font-bold text-slate-800 cursor-pointer"
+                    >
+                      <option value="ALL">Semua Divisi ({employees.length} Staf)</option>
+                      {divisionList.map((div) => (
+                        <option key={div} value={div}>
+                          {div} ({employees.filter((e) => e.divisi === div).length} Staf)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="border border-slate-200 rounded-xl p-2.5 bg-slate-50 max-h-44 overflow-y-auto custom-scrollbar">
+                      <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1.5">
+                        Urutan Staf di Database:
+                      </span>
+                      <ol className="space-y-1 text-[11px] text-slate-700">
+                        {targetEmployeesForOrder.map((e, i) => (
+                          <li key={e.id} className="truncate">
+                            <span className="font-mono text-slate-400 mr-1.5">{i + 1}.</span>
+                            <strong className="text-slate-900">{e.nama}</strong>{' '}
+                            <span className="text-[10px] text-slate-400">({e.divisi})</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                    <textarea
+                      rows={6}
+                      value={rawFbImportText}
+                      onChange={(e) => setRawFbImportText(e.target.value)}
+                      placeholder={`Tempel 1 kolom daftar Nama/Username Facebook sesuai urutan di samping (1 baris = 1 staf)...`}
+                      className="w-full px-3 py-2.5 font-mono text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* LIVE MAPPING PREVIEW TABLE */}
+              {parsedFbImportRows.length > 0 && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <span className="font-bold text-slate-800">
+                      Pratinjau Pemasangan Akun Facebook ({parsedFbImportRows.filter((r) => r.matchedEmployee).length} dari {parsedFbImportRows.length} baris siap disimpan)
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700">
+                      Akun IG Tidak Berubah
+                    </span>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto custom-scrollbar">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-slate-100 text-slate-600 uppercase text-[9px] font-bold sticky top-0">
+                        <tr>
+                          <th className="py-1.5 px-2.5">Input</th>
+                          <th className="py-1.5 px-2.5">Karyawan di Database (Bisa Ubah Manual)</th>
+                          <th className="py-1.5 px-2.5">IG Tetap</th>
+                          <th className="py-1.5 px-2.5 text-[#1877F2]">Akun FB Baru</th>
+                          <th className="py-1.5 px-2.5">Status Cocok</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {parsedFbImportRows.map((row) => (
+                          <tr
+                            key={row.rowIndex}
+                            className={
+                              row.matchStatus === 'ambiguous'
+                                ? 'bg-amber-50/70'
+                                : row.matchStatus === 'not_found'
+                                ? 'bg-rose-50/50'
+                                : 'hover:bg-slate-50'
+                            }
+                          >
+                            <td className="py-1.5 px-2.5 font-medium text-slate-700">
+                              {row.rawInputName}
+                            </td>
+                            <td className="py-1.5 px-2.5">
+                              {fbImportTab === 'by_name' ? (
+                                <select
+                                  value={row.matchedEmployee?.id || ''}
+                                  onChange={(e) =>
+                                    setManualFbRowTargetOverrides((prev) => ({
+                                      ...prev,
+                                      [row.rowIndex]: e.target.value,
+                                    }))
+                                  }
+                                  className="px-2 py-1 rounded border border-slate-200 bg-white font-semibold text-slate-900 max-w-[210px] cursor-pointer"
+                                >
+                                  <option value="">-- Pilih / Abaikan --</option>
+                                  {employees.map((emp) => (
+                                    <option key={emp.id} value={emp.id}>
+                                      {emp.nama} ({emp.divisi})
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="font-bold text-slate-900">
+                                  {row.matchedEmployee
+                                    ? `${row.matchedEmployee.nama} (${row.matchedEmployee.divisi})`
+                                    : '-'}
+                                </span>
+                              )}
+                              {row.note && (
+                                <span className="block text-[10px] text-amber-800 mt-0.5">
+                                  {row.note}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-2.5 font-mono text-pink-700">
+                              {row.matchedEmployee?.username1
+                                ? `@${row.matchedEmployee.username1}`
+                                : '-'}
+                            </td>
+                            <td className="py-1.5 px-2.5 font-bold text-[#1877F2]">
+                              {row.fb1}
+                              {row.fb2 && (
+                                <span className="block text-[10px] font-normal text-slate-500">
+                                  2: {row.fb2}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-2.5">
+                              {row.matchStatus === 'exact' && (
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px]">
+                                  Cocok Tepat
+                                </span>
+                              )}
+                              {row.matchStatus === 'similar' && (
+                                <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 font-bold text-[10px]">
+                                  Mirip
+                                </span>
+                              )}
+                              {row.matchStatus === 'ambiguous' && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[10px] inline-flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>Cek Nama Mirip</span>
+                                </span>
+                              )}
+                              {row.matchStatus === 'not_found' && (
+                                <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-bold text-[10px]">
+                                  Pilih Manual
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 shrink-0">
+              <span className="text-[11px] text-slate-500">
+                Total karyawan tetap terjaga: <b>{employees.length} Staf</b>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsFbImportOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyFbImport}
+                  disabled={parsedFbImportRows.filter((r) => r.matchedEmployee).length === 0}
+                  className="px-5 py-2 bg-[#1877F2] hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>
+                    Simpan Username FB ({parsedFbImportRows.filter((r) => r.matchedEmployee).length} Staf)
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* GOOGLE SHEETS FULL EMPLOYEE IMPORT & SYNC MODAL           */}
       {/* ========================================================= */}
       {isSheetSyncOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto custom-scrollbar">
-            
-            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
@@ -1111,23 +1815,22 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
-                    Import dari Google Sheet yang Sudah Ada
+                    Import Tabel Karyawan dari Google Sheet
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Masukkan data daftar karyawan dari spreadsheet Anda ke dalam sistem
+                    Mendukung kolom IG maupun kolom gabungan IG + FB (akun FB yang sudah ada otomatis dipertahankan)
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsSheetSyncOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Navigation Tabs */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold">
               <button
                 type="button"
@@ -1139,7 +1842,7 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                 }`}
               >
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                <span>1. Copy-Paste dari Google Sheet (Paling Mudah)</span>
+                <span>1. Copy-Paste Tabel</span>
               </button>
               <button
                 type="button"
@@ -1163,11 +1866,10 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                 }`}
               >
                 <Sparkles className="w-4 h-4 text-amber-500" />
-                <span>3. Pasang Langsung di Sheets</span>
+                <span>3. Panduan</span>
               </button>
             </div>
 
-            {/* Status Feedback Message */}
             {syncMessage && (
               <div
                 className={`p-3.5 rounded-xl text-xs flex items-start gap-2 ${
@@ -1185,36 +1887,9 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
               </div>
             )}
 
-            {/* TAB 1: PASTE SPREADSHEET TABLE */}
             {syncTab === 'paste' && (
               <div className="space-y-4">
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-slate-700 block">
-                      Tempel (Paste) Baris Tabel dari Google Sheet Anda:
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRawSheetText(`1\tUMUM / NGK\tYAYAK\tsuryarahmad64\t\tBebas
-2\tADMIN NGK\tBINTI\tbintiandini\t\tNormal
-3\tADMIN NGK\tMEGA\tmegawati.sun\t\tNormal
-4\tADMIN NGK\tMYTHA\tmythalusia\t\tCuti
-5\tADMIN NGK\tCHRISTIN\tchristinn.df\t\tNormal
-6\tADMIN NGK\tTIARA\ttiaraindrianip\t\tNormal
-13\tMS, FL & PROMOTOR NGK\tWAHYU MS\twahyusaputro2023\t\tNormal
-18\tMS, FL & PROMOTOR NGK\tMUSTAIN FL\tmstn_12\t\tNormal
-20\tMS, FL & PROMOTOR NGK\tDIMAS OPPO\tahm.dimasep\t\tNormal
-22\tMS, FL & PROMOTOR NGK\tRENDY SAMSUNG\trxn1st\t\tNormal
-26\tG1 ELEKT NGK\tBAYU\tbayusukmaaaa\t\tNormal`);
-                      }}
-                      className="text-[11px] text-emerald-700 hover:underline font-semibold cursor-pointer flex items-center gap-1"
-                    >
-                      <Sparkles className="w-3 h-3 text-emerald-600" />
-                      <span>Contoh Data KTSN Anda</span>
-                    </button>
-                  </div>
-
                   <textarea
                     rows={6}
                     value={rawSheetText}
@@ -1222,29 +1897,16 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                       setRawSheetText(e.target.value);
                       setSyncMessage(null);
                     }}
-                    placeholder={`Cara paling mudah:
-1. Buka tab "Daftar Karyawan" di Google Sheet Anda (Data_Monitoring_Like_Karyawan_V5_KTSN).
-2. Blok tabel karyawan (Ctrl+A atau seleksi cell baris 1 sampai baris terakhir).
-3. Tekan Ctrl+C (Copy).
-4. Klik di dalam kotak ini, lalu tekan Ctrl+V (Paste).
-5. Klik tombol hijau "Terapkan" di bawah.`}
+                    placeholder={`Tempel baris tabel dari Google Sheet Anda:\nDivisi [Tab] Nama [Tab] Username IG 1 [Tab] IG 2 [Tab] Status [Tab] Ket [Tab] Username FB 1`}
                     className="w-full px-3.5 py-2.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none custom-scrollbar"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    * Otomatis membaca kolom No, Departemen/Divisi, Nama, Username IG 1 &amp; 2, serta Status Karyawan Anda.
-                  </p>
                 </div>
 
-                {/* Live Parsed Preview */}
                 {parsedSheetEmployees.length > 0 && (
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                      <span className="flex items-center gap-1.5 text-emerald-700">
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Terdeteksi {parsedSheetEmployees.length} Karyawan Siap Diimport:</span>
-                      </span>
-                    </div>
-
+                    <span className="text-xs font-bold text-emerald-700 block">
+                      Terdeteksi {parsedSheetEmployees.length} Karyawan Siap Diimport
+                    </span>
                     <div className="max-h-40 overflow-y-auto custom-scrollbar border border-slate-200 rounded-lg bg-white">
                       <table className="w-full text-[11px] text-left">
                         <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[9px] sticky top-0">
@@ -1252,43 +1914,33 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                             <th className="py-1 px-2">Divisi</th>
                             <th className="py-1 px-2">Nama</th>
                             <th className="py-1 px-2">IG 1</th>
+                            <th className="py-1 px-2">FB 1</th>
                             <th className="py-1 px-2">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {parsedSheetEmployees.slice(0, 10).map((emp, i) => (
-                            <tr key={i} className="hover:bg-slate-50">
+                            <tr key={i}>
                               <td className="py-1 px-2 font-semibold text-slate-700">{emp.divisi}</td>
                               <td className="py-1 px-2 text-slate-900">{emp.nama}</td>
-                              <td className="py-1 px-2 font-mono text-indigo-600">@{emp.username1}</td>
-                              <td className="py-1 px-2">
-                                <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                                  emp.status === 'Normal' ? 'text-emerald-700 bg-emerald-50' : 'text-orange-700 bg-orange-50'
-                                }`}>
-                                  {emp.status}
-                                </span>
-                              </td>
+                              <td className="py-1 px-2 font-mono text-pink-700">@{emp.username1}</td>
+                              <td className="py-1 px-2 text-[#1877F2]">{emp.fbUsername1 || '-'}</td>
+                              <td className="py-1 px-2">{emp.status}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                    {parsedSheetEmployees.length > 10 && (
-                      <p className="text-[10px] text-slate-400 text-right">
-                        + {parsedSheetEmployees.length - 10} karyawan lainnya...
-                      </p>
-                    )}
                   </div>
                 )}
 
-                {/* Import Mode Options */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <label
                     onClick={() => setSyncMode('replace')}
-                    className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
+                    className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer ${
                       syncMode === 'replace'
                         ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 font-bold'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        : 'border-slate-200 text-slate-600'
                     }`}
                   >
                     <input
@@ -1296,22 +1948,22 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                       name="syncMode"
                       checked={syncMode === 'replace'}
                       onChange={() => setSyncMode('replace')}
-                      className="mt-0.5 text-emerald-600"
+                      className="mt-0.5"
                     />
                     <div>
                       <span>Ganti Semua Data (Replace)</span>
                       <p className="text-[11px] font-normal text-slate-500">
-                        Kosongkan database lama dan isi murni dengan data Google Sheet ini.
+                        Perbarui seluruh tabel karyawan (akun FB yang cocok otomatis dipertahankan).
                       </p>
                     </div>
                   </label>
 
                   <label
                     onClick={() => setSyncMode('append')}
-                    className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
+                    className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer ${
                       syncMode === 'append'
                         ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 font-bold'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        : 'border-slate-200 text-slate-600'
                     }`}
                   >
                     <input
@@ -1319,18 +1971,17 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                       name="syncMode"
                       checked={syncMode === 'append'}
                       onChange={() => setSyncMode('append')}
-                      className="mt-0.5 text-emerald-600"
+                      className="mt-0.5"
                     />
                     <div>
-                      <span>Tambahkan ke Database (Append)</span>
+                      <span>Tambahkan Baris Baru (Append)</span>
                       <p className="text-[11px] font-normal text-slate-500">
-                        Pertahankan data yang sudah ada dan gabungkan data baru ini.
+                        Gabungkan ke daftar karyawan yang sudah ada.
                       </p>
                     </div>
                   </label>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
@@ -1343,11 +1994,7 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
                     type="button"
                     onClick={handleApplyParsedSheet}
                     disabled={parsedSheetEmployees.length === 0}
-                    className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                      parsedSheetEmployees.length > 0
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    }`}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1.5"
                   >
                     <Check className="w-4 h-4" />
                     <span>Terapkan ({parsedSheetEmployees.length} Karyawan)</span>
@@ -1356,79 +2003,66 @@ export function EmployeeManager({ employees, setEmployees, compactMode = false, 
               </div>
             )}
 
-            {/* TAB 2: FETCH VIA SPREADSHEET URL */}
             {syncTab === 'url' && (
               <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
-                    Masukkan URL Google Sheet Anda:
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={sheetUrl}
-                      onChange={(e) => setSheetUrl(e.target.value)}
-                      placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                      className="flex-1 px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleFetchSheetUrl}
-                      disabled={isSyncing || !sheetUrl.trim()}
-                      className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 text-white cursor-pointer ${
-                        isSyncing || !sheetUrl.trim()
-                          ? 'bg-slate-300 cursor-not-allowed'
-                          : 'bg-indigo-600 hover:bg-indigo-700 shadow-sm'
-                      }`}
-                    >
-                      {isSyncing ? (
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Download className="w-3.5 h-3.5" />
-                      )}
-                      <span>{isSyncing ? 'Mengambil...' : 'Tarik Data'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 space-y-1.5">
-                  <p className="font-bold flex items-center gap-1 text-amber-950">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    <span>Catatan Izin Akses Google Sheet:</span>
-                  </p>
-                  <p className="text-[11px] text-amber-800 leading-relaxed">
-                    Pastikan tombol <strong>Bagikan (Share)</strong> di Google Sheet Anda diatur ke <strong>"Siapa saja yang memiliki link dapat melihat (Viewer)"</strong> agar aplikasi dapat membaca baris data. Jika Sheet bersifat privat kantor, gunakan opsi <strong>"1. Copy-Paste dari Google Sheet"</strong> yang 100% instan dan tidak membutuhkan akses publik.
-                  </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={sheetUrl}
+                    onChange={(e) => setSheetUrl(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+                    className="flex-1 px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleFetchSheetUrl}
+                    disabled={isSyncing || !sheetUrl.trim()}
+                    className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{isSyncing ? 'Mengambil...' : 'Tarik Data'}</span>
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* TAB 3: GUIDE PASANG KE GOOGLE SHEET ANDA */}
             {syncTab === 'guide' && (
-              <div className="space-y-4">
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-xs text-indigo-900 space-y-2.5">
-                  <h4 className="font-bold text-indigo-950 text-sm">
-                    Cara Menghubungkan Langsung ke File Google Sheet Anda:
-                  </h4>
-                  <p className="text-slate-600 text-xs leading-relaxed">
-                    Jika Anda ingin aplikasi ini terpasang langsung di dalam Google Sheet Anda (sehingga setiap perubahan nama/status di Google Sheet langsung otomatis terbaca tanpa perlu copy-paste lagi):
-                  </p>
-                  <ol className="list-decimal pl-4 space-y-1.5 text-slate-700">
-                    <li>Buka file <strong>Google Sheets</strong> yang sudah Anda miliki.</li>
-                    <li>Pastikan nama tab lembar kerja bernama <code>Daftar Karyawan</code> (atau sesuaikan di script).</li>
-                    <li>Klik menu di atas: <strong>Ekstensi &gt; Apps Script</strong>.</li>
-                    <li>Buka menu <strong>"Kode Google Apps Script"</strong> di aplikasi ini, lalu salin <code>Code.gs</code> dan <code>Index.html</code> ke editor Apps Script Anda.</li>
-                    <li>Klik <strong>Terapkan &gt; Penerapan Baru</strong> &gt; Tipe <strong>Aplikasi Web</strong> &gt; Siapa saja (Anyone).</li>
-                    <li>Selesai! Anda akan memiliki Web App pribadi yang 100% tersambung ke Google Sheet Anda.</li>
-                  </ol>
-                </div>
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-xs text-slate-700 space-y-2">
+                <p className="font-bold text-indigo-950">Tips Pemisahan Username IG &amp; FB:</p>
+                <p>
+                  Jika daftar karyawan sudah terisi dan Anda hanya ingin memasukkan daftar nama akun Facebook saja tanpa mengubah data karyawan lain, gunakan tombol biru <b>"Import Khusus Username FB"</b> di halaman Data Karyawan!
+                </p>
               </div>
             )}
-
           </div>
         </div>
       )}
 
+      {/* Confirm Dialog Modal */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900">{confirmDialog.title}</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">{confirmDialog.message}</p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmDialog.onConfirm}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg cursor-pointer"
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

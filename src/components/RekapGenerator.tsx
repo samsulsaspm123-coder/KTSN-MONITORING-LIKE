@@ -1,29 +1,26 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { 
-  Instagram, 
-  Send, 
-  Copy, 
-  Check, 
-  RotateCcw, 
-  Sparkles, 
-  Users, 
-  CheckCircle2, 
-  XCircle, 
-  AlertTriangle, 
-  Calendar, 
+import {
+  Instagram,
+  Facebook,
+  Send,
+  Copy,
+  Check,
+  Sparkles,
+  Users,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Calendar,
   ExternalLink,
   Info,
   SlidersHorizontal,
   Search,
-  Filter,
   Terminal,
-  HelpCircle,
   X,
   Layers,
   ArrowRight,
   Globe,
   Rocket,
-  UploadCloud,
   Chrome,
   Bookmark,
   Zap,
@@ -33,57 +30,135 @@ import {
   QrCode,
   Smartphone,
   Trash2,
-  Camera
+  Camera,
+  UserCheck,
+  UserX,
+  ShieldAlert,
+  Link2,
+  Upload,
+  RotateCcw,
 } from 'lucide-react';
-import { Employee, LikersProcessResult } from '../types';
-import { processLikersData, formatDateIndo, generateWhatsAppLink, extractUsernamesFromRawText, compareDivisions } from '../utils/likersParser';
-import { INSTAGRAM_CONSOLE_SCRIPT } from '../data/gasCodeSnippets';
-import { BOOKMARKLET_CODE, downloadExtensionZip } from '../data/extensionFiles';
+import {
+  Employee,
+  LikersProcessResult,
+  LikePlatformMode,
+  SimilarLikerCandidate,
+} from '../types';
+import {
+  processLikersData,
+  formatDateIndo,
+  generateWhatsAppLink,
+  extractLikersByPlatform,
+  parseFacebookIdentity,
+  compareDivisions,
+} from '../utils/likersParser';
+import {
+  INSTAGRAM_CONSOLE_SCRIPT,
+  FACEBOOK_CONSOLE_SCRIPT,
+} from '../data/gasCodeSnippets';
+import {
+  BOOKMARKLET_CODE,
+  FACEBOOK_BOOKMARKLET_CODE,
+  downloadExtensionZip,
+} from '../data/extensionFiles';
 import { RecapBarcodeModal } from './RecapBarcodeModal';
 import { LongScreenshotModal } from './LongScreenshotModal';
 
-const LOCAL_STORAGE_KEY_REKAP_URL = 'likemonitor_rekap_url_post_v1';
-const LOCAL_STORAGE_KEY_REKAP_LIKERS = 'likemonitor_rekap_raw_likers_v1';
+const LOCAL_STORAGE_KEY_REKAP_URL_IG = 'likemonitor_rekap_url_post_v1';
+const LOCAL_STORAGE_KEY_REKAP_LIKERS_IG = 'likemonitor_rekap_raw_likers_v1';
+const LOCAL_STORAGE_KEY_REKAP_URL_FB = 'likemonitor_rekap_fb_url_post_v1';
+const LOCAL_STORAGE_KEY_REKAP_LIKERS_FB = 'likemonitor_rekap_fb_raw_likers_v1';
 const LOCAL_STORAGE_KEY_REKAP_AUTO_DATE = 'likemonitor_rekap_auto_date_v1';
 const LOCAL_STORAGE_KEY_REKAP_CUSTOM_DATE = 'likemonitor_rekap_custom_date_v1';
+const LOCAL_STORAGE_KEY_REJECTED_SIMILAR = 'likemonitor_rejected_similar_pairs_v1';
 
 interface RekapGeneratorProps {
   employees: Employee[];
+  setEmployees?: (employees: Employee[]) => void;
   storeCode: string;
   setStoreCode: (code: string) => void;
   compactMode?: boolean;
+  likePlatform?: LikePlatformMode;
+  setLikePlatform?: (mode: LikePlatformMode) => void;
   onOpenConsoleGuide: () => void;
   onOpenExtensionGuide?: () => void;
   onOpenEmployeeManager: () => void;
+  onOpenFbImport?: () => void;
   onOpenSosmedReport?: () => void;
 }
 
 export function RekapGenerator({
   employees,
+  setEmployees,
   storeCode,
   setStoreCode,
   compactMode = false,
+  likePlatform,
+  setLikePlatform,
   onOpenConsoleGuide,
   onOpenExtensionGuide,
   onOpenEmployeeManager,
+  onOpenFbImport,
   onOpenSosmedReport,
 }: RekapGeneratorProps) {
-  // Form State with LocalStorage Persistence (Aman & Tidak Hilang saat di-minimize atau berpindah tab)
-  const [urlPost, setUrlPost] = useState<string>(() => {
+  // Unified Platform Switcher (Saklar Pembeda Mode Instagram vs Mode Facebook)
+  const [internalPlatform, setInternalPlatform] = useState<LikePlatformMode>('instagram');
+  const activePlatform: LikePlatformMode = likePlatform ?? internalPlatform;
+  const isFb = activePlatform === 'facebook';
+
+  const handleSwitchPlatform = (mode: LikePlatformMode) => {
+    if (setLikePlatform) {
+      setLikePlatform(mode);
+    } else {
+      setInternalPlatform(mode);
+    }
+    setLinkingLikerRaw(null);
+  };
+
+  // Separate persisted drafts for Instagram & Facebook so switching toggle never overwrites data
+  const [urlPostIg, setUrlPostIg] = useState<string>(() => {
     try {
-      return localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_URL) || '';
+      return localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_URL_IG) || '';
     } catch {
       return '';
     }
   });
 
-  const [rawLikersText, setRawLikersText] = useState<string>(() => {
+  const [rawLikersIg, setRawLikersIg] = useState<string>(() => {
     try {
-      return localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_LIKERS) || '';
+      return localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_LIKERS_IG) || '';
     } catch {
       return '';
     }
   });
+
+  const [urlPostFb, setUrlPostFb] = useState<string>(() => {
+    try {
+      return localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_URL_FB) || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [rawLikersFb, setRawLikersFb] = useState<string>(() => {
+    try {
+      return localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_LIKERS_FB) || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const urlPost = isFb ? urlPostFb : urlPostIg;
+  const setUrlPost = (val: string) => {
+    if (isFb) setUrlPostFb(val);
+    else setUrlPostIg(val);
+  };
+
+  const rawLikersText = isFb ? rawLikersFb : rawLikersIg;
+  const setRawLikersText = (val: string) => {
+    if (isFb) setRawLikersFb(val);
+    else setRawLikersIg(val);
+  };
 
   const [isAutoDate, setIsAutoDate] = useState<boolean>(() => {
     try {
@@ -103,28 +178,94 @@ export function RekapGenerator({
     }
   });
 
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  // Manual similarity / unlisted account confirmations per platform (employeeId -> likerRaw)
+  const [manualConfirmedIg, setManualConfirmedIg] = useState<Record<string, string>>({});
+  const [manualConfirmedFb, setManualConfirmedFb] = useState<Record<string, string>>({});
+  const activeManualConfirmed = isFb ? manualConfirmedFb : manualConfirmedIg;
 
-  // Restore initial processed result if rawLikersText exists in storage
-  const [result, setResult] = useState<LikersProcessResult | null>(() => {
+  // Rejected similar pairs ("Beda Orang") persisted across sessions
+  const [rejectedPairKeys, setRejectedPairKeys] = useState<string[]>(() => {
     try {
-      const savedLikers = localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_LIKERS);
-      if (savedLikers && savedLikers.trim()) {
-        const savedUrl = localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_URL) || '';
-        const savedCustomDate = localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_CUSTOM_DATE) || formatDateIndo(new Date());
-        return processLikersData({
-          urlPost: savedUrl.trim(),
-          rawLikersText: savedLikers,
-          employees,
-          customDate: savedCustomDate,
-          storeCode: storeCode || 'KTSN',
-        });
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY_REJECTED_SIMILAR);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {
-      // Fallback
+      // ignore
     }
-    return null;
+    return [];
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY_REJECTED_SIMILAR, JSON.stringify(rejectedPairKeys));
+    } catch {
+      // ignore
+    }
+  }, [rejectedPairKeys]);
+
+  // Track whether each platform has processed output active
+  const [hasProcessedIg, setHasProcessedIg] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_LIKERS_IG);
+      return Boolean(saved && saved.trim());
+    } catch {
+      return false;
+    }
+  });
+
+  const [hasProcessedFb, setHasProcessedFb] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY_REKAP_LIKERS_FB);
+      return Boolean(saved && saved.trim());
+    } catch {
+      return false;
+    }
+  });
+
+  const hasProcessedActive = isFb ? hasProcessedFb : hasProcessedIg;
+  const setHasProcessedActive = (val: boolean) => {
+    if (isFb) setHasProcessedFb(val);
+    else setHasProcessedIg(val);
+  };
+
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [toastNotice, setToastNotice] = useState<{ type: 'success' | 'warning' | 'info'; message: string } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'warning' | 'info' = 'info') => {
+    setToastNotice({ message, type });
+    setTimeout(() => {
+      setToastNotice((prev) => (prev?.message === message ? null : prev));
+    }, 3500);
+  };
+
+  // Compute result reactively whenever platform, employees, confirmations, or processed state changes
+  const result = useMemo<LikersProcessResult | null>(() => {
+    if (!hasProcessedActive || !rawLikersText.trim()) return null;
+    const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
+    return processLikersData({
+      urlPost: urlPost.trim(),
+      rawLikersText,
+      employees,
+      customDate: effectiveDate,
+      storeCode: storeCode || 'KTSN',
+      platform: activePlatform,
+      manualConfirmedMap: activeManualConfirmed,
+      rejectedPairKeys,
+    });
+  }, [
+    hasProcessedActive,
+    rawLikersText,
+    urlPost,
+    employees,
+    isAutoDate,
+    customDate,
+    storeCode,
+    activePlatform,
+    activeManualConfirmed,
+    rejectedPairKeys,
+  ]);
 
   const [clearFeedback, setClearFeedback] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
@@ -138,86 +279,111 @@ export function RekapGenerator({
   const [isScreenshotModalOpen, setIsScreenshotModalOpen] = useState<boolean>(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
 
-  // Auto-sync form inputs to localStorage so data NEVER vanishes when minimized or refreshed
+  // State for linking an unlisted liker directly to an existing employee
+  const [linkingLikerRaw, setLinkingLikerRaw] = useState<string | null>(null);
+  const [linkingEmployeeId, setLinkingEmployeeId] = useState<string>('');
+
+  // Persist IG & FB inputs independently
   useEffect(() => {
     try {
-      if (urlPost) {
-        localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_URL, urlPost);
-      } else {
-        localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_URL);
-      }
-    } catch (e) {
-      console.warn('Failed to save urlPost to localStorage', e);
+      if (urlPostIg) localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_URL_IG, urlPostIg);
+      else localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_URL_IG);
+    } catch {
+      // ignore
     }
-  }, [urlPost]);
+  }, [urlPostIg]);
 
   useEffect(() => {
     try {
-      if (rawLikersText) {
-        localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_LIKERS, rawLikersText);
-      } else {
-        localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_LIKERS);
-      }
-    } catch (e) {
-      console.warn('Failed to save rawLikersText to localStorage', e);
+      if (rawLikersIg) localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_LIKERS_IG, rawLikersIg);
+      else localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_LIKERS_IG);
+    } catch {
+      // ignore
     }
-  }, [rawLikersText]);
+  }, [rawLikersIg]);
+
+  useEffect(() => {
+    try {
+      if (urlPostFb) localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_URL_FB, urlPostFb);
+      else localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_URL_FB);
+    } catch {
+      // ignore
+    }
+  }, [urlPostFb]);
+
+  useEffect(() => {
+    try {
+      if (rawLikersFb) localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_LIKERS_FB, rawLikersFb);
+      else localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_LIKERS_FB);
+    } catch {
+      // ignore
+    }
+  }, [rawLikersFb]);
 
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_AUTO_DATE, String(isAutoDate));
-    } catch (e) {
-      console.warn('Failed to save isAutoDate to localStorage', e);
+    } catch {
+      // ignore
     }
   }, [isAutoDate]);
 
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY_REKAP_CUSTOM_DATE, customDate);
-    } catch (e) {
-      console.warn('Failed to save customDate to localStorage', e);
+    } catch {
+      // ignore
     }
   }, [customDate]);
 
-  // Keep result synced if employees list updates while raw likers are present
-  useEffect(() => {
-    if (rawLikersText.trim() && !result) {
-      const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
-      const res = processLikersData({
-        urlPost: urlPost.trim(),
-        rawLikersText,
-        employees,
-        customDate: effectiveDate,
-        storeCode: storeCode || 'KTSN',
-      });
-      setResult(res);
-    }
-  }, [employees]);
-  
   // Breakdown Table Filter State
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDivFilter, setSelectedDivFilter] = useState<string>('ALL');
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'ALL' | 'DENDA' | 'LIKED' | 'ORANG_LUAR' | 'EXEMPT'>('ALL');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<
+    'ALL' | 'DENDA' | 'LIKED' | 'ORANG_LUAR' | 'EXEMPT'
+  >('ALL');
   const [copiedExternalLikers, setCopiedExternalLikers] = useState<boolean>(false);
   const [copiedSingleUser, setCopiedSingleUser] = useState<string | null>(null);
-  const [externalLikersViewMode, setExternalLikersViewMode] = useState<'top' | 'bottom' | 'table_only'>('top');
+  const [externalLikersViewMode, setExternalLikersViewMode] = useState<'top' | 'bottom'>('top');
   const [isExternalLikersExpanded, setIsExternalLikersExpanded] = useState<boolean>(true);
 
   // Ref to bypass React security filter for javascript: URLs when dragging to bookmark bar
   const bookmarkletQuickRef = useRef<HTMLAnchorElement | null>(null);
+  const activeBookmarkletCode = isFb ? FACEBOOK_BOOKMARKLET_CODE : BOOKMARKLET_CODE;
+  const activeConsoleScript = isFb ? FACEBOOK_CONSOLE_SCRIPT : INSTAGRAM_CONSOLE_SCRIPT;
 
   useEffect(() => {
     if (isExtensionModalOpen && bookmarkletQuickRef.current) {
-      bookmarkletQuickRef.current.setAttribute('href', BOOKMARKLET_CODE);
+      bookmarkletQuickRef.current.setAttribute('href', activeBookmarkletCode);
     }
-  }, [isExtensionModalOpen]);
+  }, [isExtensionModalOpen, activeBookmarkletCode]);
 
-  // Real-time extracted usernames preview count
+  // Real-time extracted accounts preview count
   const detectedUsernames = useMemo(() => {
-    return extractUsernamesFromRawText(rawLikersText);
-  }, [rawLikersText]);
+    return extractLikersByPlatform(rawLikersText, activePlatform);
+  }, [rawLikersText, activePlatform]);
 
-  // Handle Process Click (always uses real-time today date if isAutoDate is true)
+  // Count how many Normal employees have missing FB accounts (for helpful import nudge)
+  const unmappedFbEmployeesCount = useMemo(() => {
+    return employees.filter(
+      (e) => e.status === 'Normal' && !(e.fbUsername1 && e.fbUsername1.trim()) && !(e.fbUsername2 && e.fbUsername2.trim())
+    ).length;
+  }, [employees]);
+
+  // Detect mismatched URL vs selected platform
+  const urlPlatformMismatch = useMemo<'should_be_fb' | 'should_be_ig' | null>(() => {
+    const lower = urlPost.trim().toLowerCase();
+    if (!lower) return null;
+    if (!isFb && (lower.includes('facebook.com') || lower.includes('fb.watch') || lower.includes('fb.com'))) {
+      return 'should_be_fb';
+    }
+    if (isFb && lower.includes('instagram.com')) {
+      return 'should_be_ig';
+    }
+    return null;
+  }, [urlPost, isFb]);
+
+  // Handle Process Click
   const handleProcess = () => {
     if (!rawLikersText.trim()) {
       setIsQuickGuideOpen(true);
@@ -225,24 +391,121 @@ export function RekapGenerator({
     }
 
     setIsProcessing(true);
-
     const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
     if (isAutoDate) {
       setCustomDate(effectiveDate);
     }
 
-    // Simulate responsive processing feel
     setTimeout(() => {
-      const res = processLikersData({
-        urlPost: urlPost.trim(),
-        rawLikersText,
-        employees,
-        customDate: effectiveDate,
-        storeCode: storeCode || 'KTSN',
-      });
-      setResult(res);
+      setHasProcessedActive(true);
       setIsProcessing(false);
-    }, 200);
+    }, 150);
+  };
+
+  // Confirm a similar candidate (temporary for this post OR permanently save into employee's FB/IG account)
+  const handleConfirmCandidate = (candidate: SimilarLikerCandidate, savePermanently: boolean) => {
+    const empId = candidate.employee.id;
+    if (isFb) {
+      setManualConfirmedFb((prev) => ({ ...prev, [empId]: candidate.likerRaw }));
+    } else {
+      setManualConfirmedIg((prev) => ({ ...prev, [empId]: candidate.likerRaw }));
+    }
+
+    if (savePermanently && setEmployees) {
+      const updated = employees.map((emp) => {
+        if (emp.id !== empId) return emp;
+        if (isFb) {
+          const parsedFb = parseFacebookIdentity(candidate.likerRaw);
+          const cleanName = parsedFb.rawDisplay || candidate.likerRaw.trim();
+          if (!emp.fbUsername1 || !emp.fbUsername1.trim()) {
+            return { ...emp, fbUsername1: cleanName };
+          }
+          return { ...emp, fbUsername2: cleanName };
+        } else {
+          const cleanIg = candidate.likerRaw.trim().replace(/^@+/, '');
+          if (!emp.username1 || !emp.username1.trim()) {
+            return { ...emp, username1: cleanIg };
+          }
+          return { ...emp, username2: cleanIg };
+        }
+      });
+      setEmployees(updated);
+      showToast(
+        `Akun "${candidate.likerRaw}" disimpan permanen ke data ${isFb ? 'Facebook' : 'Instagram'} ${candidate.employee.nama} (Total staf tetap ${employees.length}).`,
+        'success'
+      );
+    } else {
+      showToast(`${candidate.employee.nama} ditandai SUDAH LIKE melalui "${candidate.likerRaw}".`, 'success');
+    }
+  };
+
+  // Mark a similar candidate as DIFFERENT PERSON ("Beda Orang")
+  const handleRejectCandidate = (candidate: SimilarLikerCandidate) => {
+    setRejectedPairKeys((prev) => (prev.includes(candidate.id) ? prev : [...prev, candidate.id]));
+    showToast(
+      `"${candidate.likerRaw}" ditandai BEDA ORANG dengan ${candidate.employee.nama} dan tetap dipisahkan.`,
+      'info'
+    );
+  };
+
+  // Undo manual confirmation on an employee row
+  const handleUndoManualConfirm = (employeeId: string) => {
+    if (isFb) {
+      setManualConfirmedFb((prev) => {
+        const next = { ...prev };
+        delete next[employeeId];
+        return next;
+      });
+    } else {
+      setManualConfirmedIg((prev) => {
+        const next = { ...prev };
+        delete next[employeeId];
+        return next;
+      });
+    }
+  };
+
+  // Link an arbitrary unlisted liker to an existing employee
+  const handleAssignUnlistedToEmployee = (likerRaw: string, empId: string, savePermanently: boolean) => {
+    if (!empId) return;
+    const targetEmp = employees.find((e) => e.id === empId);
+    if (!targetEmp) return;
+
+    if (isFb) {
+      setManualConfirmedFb((prev) => ({ ...prev, [empId]: likerRaw }));
+    } else {
+      setManualConfirmedIg((prev) => ({ ...prev, [empId]: likerRaw }));
+    }
+
+    if (savePermanently && setEmployees) {
+      const updated = employees.map((emp) => {
+        if (emp.id !== empId) return emp;
+        if (isFb) {
+          const parsedFb = parseFacebookIdentity(likerRaw);
+          const cleanName = parsedFb.rawDisplay || likerRaw.trim();
+          if (!emp.fbUsername1 || !emp.fbUsername1.trim()) {
+            return { ...emp, fbUsername1: cleanName };
+          }
+          return { ...emp, fbUsername2: cleanName };
+        } else {
+          const cleanIg = likerRaw.trim().replace(/^@+/, '');
+          if (!emp.username1 || !emp.username1.trim()) {
+            return { ...emp, username1: cleanIg };
+          }
+          return { ...emp, username2: cleanIg };
+        }
+      });
+      setEmployees(updated);
+      showToast(
+        `Akun "${likerRaw}" berhasil dihubungkan & disimpan ke profil ${isFb ? 'FB' : 'IG'} ${targetEmp.nama}!`,
+        'success'
+      );
+    } else {
+      showToast(`Akun "${likerRaw}" ditandai sebagai like milik ${targetEmp.nama}.`, 'success');
+    }
+
+    setLinkingLikerRaw(null);
+    setLinkingEmployeeId('');
   };
 
   // Copy WA text to clipboard
@@ -254,124 +517,186 @@ export function RekapGenerator({
     });
   };
 
-  // 1-Click Copy Script Console
+  // 1-Click Copy Script Console (IG or FB depending on active mode)
   const handleCopyScript = () => {
-    navigator.clipboard.writeText(INSTAGRAM_CONSOLE_SCRIPT).then(() => {
+    navigator.clipboard.writeText(activeConsoleScript).then(() => {
       setCopiedScript(true);
       setTimeout(() => setCopiedScript(false), 2500);
     });
   };
 
-  // Fill sample testing data with realistic KTSN data (Ada Denda)
+  // Fill sample testing data (Platform-aware: IG or FB with realistic similarity & false-positive test cases)
   const handleFillSample = () => {
-    setUrlPost('https://www.instagram.com/p/DAxKj2-z9Yw/');
-    const sampleLikers = [
-      'suryarahmad64',
-      'bintiandini',
-      'megawati.sun',
-      'christinn.df',
-      'tiaraindrianip',
-      'fitria_ran',
-      'desyaldita',
-      'oktafianshinta',
-      'ftr.aay',
-      'aistialqur_',
-      'anggita.restianad',
-      'wahyusaputro2023',
-      'putrirhayu_8',
-      'bagasbilly1',
-      'gifanii11',
-      'diecast_motret',
-      'sebutsajapakpoh',
-      'papa_athalla',
-      'cin.dyakbarwm',
-      'xffbyzz.6',
-      'arikprynt',
-      'bayusukmaaaa',
-      'ekotarmidianto',
-      'azizfikri28',
-      'fani_kurniawan80',
-      'nanda_kipz24',
-      'qodriyah.nur',
-      'adityareich1933',
-      'riskhy_1101',
-      'munir_murtado',
-      'ikijahee',
-      'errr.and',
-      'fashion_lover_id',
-      'retail_customer_99',
-    ].join('\n');
+    if (isFb) {
+      setUrlPostFb('https://www.facebook.com/share/p/19XkLm2PqR/');
+      const sampleFbLikers = [
+        'Surya Rahmad',
+        'Binti Andini',
+        'Megawati Sun',
+        'Christin Df',
+        'Tiara Indriani',
+        'Fitria Ran',
+        'Desy Aldita',
+        'Oktafian Shinta',
+        'Fitri Aay',
+        'Aisti Alqur',
+        'Anggita Restiana',
+        'Wahyu Saputro',
+        'Bagas Billy',
+        'Gifani',
+        'Adi Diecast',
+        'Pak Poh',
+        'Nicky Athalla',
+        'Cindy Akbar',
+        'Fabyan',
+        'Arik Priyanto',
+        'Eko Tarmidianto',
+        'Aziz Fikri',
+        'Fani Kurniawan',
+        'Nanda Kipz',
+        'Qodriyah Nur',
+        'Aditya Reich',
+        'Riskhy',
+        'Munir Murtado',
+        'Rizki Jahe',
+        'Erland',
+        // Tricky similar-but-different or slight-typo accounts to showcase similarity & false-positive protection:
+        'Bayu Setiawan', // Employee BAYU is "Bayu Sukma" -> Nama depan mirip tapi marga beda!
+        'Putri Maharani', // Employee PUTRI FL is "Putri Rahayu" -> Nama depan sama tapi beda orang!
+        'Dimas Prayogaa', // Employee DIMAS OPPO is "Dimas Prayoga" -> Mirip 96% (huruf ganda)
+        // Unlisted public / external accounts:
+        'Rina Kusuma Wardhani',
+        'Hendra Wijaya Nganjuk',
+      ].join('\n');
 
-    setRawLikersText(sampleLikers);
+      setRawLikersFb(sampleFbLikers);
+      setManualConfirmedFb({});
+      const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
+      if (isAutoDate) setCustomDate(effectiveDate);
+      setHasProcessedFb(true);
+    } else {
+      setUrlPostIg('https://www.instagram.com/p/DAxKj2-z9Yw/');
+      const sampleIgLikers = [
+        'suryarahmad64',
+        'bintiandini',
+        'megawati.sun',
+        'christinn.df',
+        'tiaraindrianip',
+        'fitria_ran',
+        'desyaldita',
+        'oktafianshinta',
+        'ftr.aay',
+        'aistialqur_',
+        'anggita.restianad',
+        'wahyusaputro2023',
+        'putrirhayu_8',
+        'bagasbilly1',
+        'gifanii11',
+        'diecast_motret',
+        'sebutsajapakpoh',
+        'papa_athalla',
+        'cin.dyakbarwm',
+        'xffbyzz.6',
+        'arikprynt',
+        'bayusukmaaaa',
+        'ekotarmidianto',
+        'azizfikri28',
+        'fani_kurniawan80',
+        'nanda_kipz24',
+        'qodriyah.nur',
+        'adityareich1933',
+        'riskhy_1101',
+        'munir_murtado',
+        'ikijahee',
+        'errr.and',
+        'dimas_prayoga99',
+        'fashion_lover_id',
+        'retail_customer_99',
+      ].join('\n');
 
-    const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
-    if (isAutoDate) setCustomDate(effectiveDate);
-
-    // Auto process sample
-    setTimeout(() => {
-      const res = processLikersData({
-        urlPost: 'https://www.instagram.com/p/DAxKj2-z9Yw/',
-        rawLikersText: sampleLikers,
-        employees,
-        customDate: effectiveDate,
-        storeCode: storeCode || 'KTSN',
-      });
-      setResult(res);
-    }, 100);
+      setRawLikersIg(sampleIgLikers);
+      setManualConfirmedIg({});
+      const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
+      if (isAutoDate) setCustomDate(effectiveDate);
+      setHasProcessedIg(true);
+    }
   };
 
   // Fill sample where EVERY Normal employee has liked (Testing "LIKE DONE")
   const handleFillAllLikedSample = () => {
-    setUrlPost('https://www.instagram.com/p/DAxKj2-z9Yw/');
-    const allNormalUsernames = employees
-      .filter(e => e.status === 'Normal')
-      .map(e => e.username1)
-      .filter(Boolean);
+    if (isFb) {
+      setUrlPostFb('https://www.facebook.com/share/p/19XkLm2PqR/');
+      const allNormalFb = employees
+        .filter((e) => e.status === 'Normal')
+        .map((e) => e.fbUsername1 || e.fbUsername2 || e.nama)
+        .filter(Boolean);
 
-    const sampleLikers = [
-      ...allNormalUsernames,
-      'customer_fashion_id',
-      'surabaya_mall_lovers',
-      'retail_lovers_indo',
-    ].join('\n');
+      const sampleFb = [
+        ...allNormalFb,
+        'Pelanggan Setia Kertosono',
+        'Budi Santoso Kediri',
+      ].join('\n');
 
-    setRawLikersText(sampleLikers);
+      setRawLikersFb(sampleFb);
+      setManualConfirmedFb({});
+      const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
+      if (isAutoDate) setCustomDate(effectiveDate);
+      setHasProcessedFb(true);
+    } else {
+      setUrlPostIg('https://www.instagram.com/p/DAxKj2-z9Yw/');
+      const allNormalUsernames = employees
+        .filter((e) => e.status === 'Normal')
+        .map((e) => e.username1)
+        .filter(Boolean);
 
-    const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
-    if (isAutoDate) setCustomDate(effectiveDate);
+      const sampleLikers = [
+        ...allNormalUsernames,
+        'customer_fashion_id',
+        'surabaya_mall_lovers',
+        'retail_lovers_indo',
+      ].join('\n');
 
-    setTimeout(() => {
-      const res = processLikersData({
-        urlPost: 'https://www.instagram.com/p/DAxKj2-z9Yw/',
-        rawLikersText: sampleLikers,
-        employees,
-        customDate: effectiveDate,
-        storeCode: storeCode || 'KTSN',
-      });
-      setResult(res);
-    }, 100);
+      setRawLikersIg(sampleLikers);
+      setManualConfirmedIg({});
+      const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
+      if (isAutoDate) setCustomDate(effectiveDate);
+      setHasProcessedIg(true);
+    }
   };
 
-  // 1-Click Auto Clear: Menghapus link IG dan seluruh username likers sebelumnya sekaligus & membersihkan storage
+  // 1-Click Auto Clear for the currently active platform
   const handleAutoClear = () => {
-    setUrlPost('');
-    setRawLikersText('');
-    setResult(null);
-    try {
-      localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_URL);
-      localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_LIKERS);
-    } catch (e) {
-      console.warn('Failed to clear rekap from localStorage', e);
+    if (isFb) {
+      setUrlPostFb('');
+      setRawLikersFb('');
+      setManualConfirmedFb({});
+      setHasProcessedFb(false);
+      try {
+        localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_URL_FB);
+        localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_LIKERS_FB);
+      } catch {
+        // ignore
+      }
+    } else {
+      setUrlPostIg('');
+      setRawLikersIg('');
+      setManualConfirmedIg({});
+      setHasProcessedIg(false);
+      try {
+        localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_URL_IG);
+        localStorage.removeItem(LOCAL_STORAGE_KEY_REKAP_LIKERS_IG);
+      } catch {
+        // ignore
+      }
     }
+    setLinkingLikerRaw(null);
     setClearFeedback(true);
     setTimeout(() => {
       setClearFeedback(false);
     }, 2800);
   };
 
-  const handleClear = handleAutoClear;
-
-  // Paste from clipboard directly
+  // Paste from clipboard directly (zero window.alert)
   const handlePasteFromClipboard = async () => {
     try {
       if (navigator.clipboard && navigator.clipboard.readText) {
@@ -380,37 +705,40 @@ export function RekapGenerator({
           setRawLikersText(text);
           const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
           if (isAutoDate) setCustomDate(effectiveDate);
-
-          // Auto trigger process
-          setTimeout(() => {
-            const res = processLikersData({
-              urlPost: urlPost || '',
-              rawLikersText: text,
-              employees,
-              customDate: effectiveDate,
-              storeCode: storeCode || 'KTSN',
-            });
-            setResult(res);
-          }, 100);
+          setHasProcessedActive(true);
+          showToast(
+            `Berhasil menempel & memproses daftar likers ${isFb ? 'Facebook' : 'Instagram'} dari clipboard.`,
+            'success'
+          );
         } else {
-          alert('Clipboard Anda masih kosong. Silakan salin daftar username likers terlebih dahulu (atau gunakan Ekstensi / Bookmarklet IG).');
+          showToast(
+            `Clipboard masih kosong. Salin daftar likers menggunakan Bookmarklet / Ekstensi ${isFb ? 'Facebook' : 'Instagram'} terlebih dahulu.`,
+            'warning'
+          );
         }
       } else {
-        alert('Browser Anda memerlukan izin untuk membaca clipboard. Silakan gunakan Ctrl+V (Paste manual) di kolom textarea.');
+        showToast(
+          'Browser meminta izin baca clipboard. Klik kotak teks lalu tekan Ctrl+V secara manual.',
+          'warning'
+        );
       }
     } catch {
-      alert('Tidak dapat membaca clipboard secara otomatis. Silakan klik pada kolom teks dan tekan Ctrl+V.');
+      showToast(
+        'Izin baca clipboard otomatis diblokir browser. Klik pada kotak teks lalu tekan Ctrl+V.',
+        'warning'
+      );
     }
   };
 
-  // Quick Copy Bookmarklet
+  // Quick Copy Bookmarklet (Platform-aware)
   const handleCopyBookmarklet = () => {
-    navigator.clipboard.writeText(BOOKMARKLET_CODE);
-    setCopiedBookmarklet(true);
-    setTimeout(() => setCopiedBookmarklet(false), 2000);
+    navigator.clipboard.writeText(activeBookmarkletCode).then(() => {
+      setCopiedBookmarklet(true);
+      setTimeout(() => setCopiedBookmarklet(false), 2000);
+    });
   };
 
-  // Download Extension ZIP from modal
+  // Download Universal IG+FB Extension ZIP
   const handleDownloadExtensionZip = async () => {
     try {
       setIsDownloadingExtensionZip(true);
@@ -422,22 +750,50 @@ export function RekapGenerator({
     }
   };
 
+  // Format display & profile link for an unrecognized liker
+  const formatLikerDisplay = (raw: string): { label: string; slugBadge?: string; profileUrl: string } => {
+    if (!isFb) {
+      const clean = raw.replace(/^@+/, '');
+      return {
+        label: `@${clean}`,
+        profileUrl: `https://www.instagram.com/${clean}/`,
+      };
+    }
+    const parsed = parseFacebookIdentity(raw);
+    const display = parsed.rawDisplay || raw;
+    let profileUrl = `https://www.facebook.com/search/top/?q=${encodeURIComponent(display)}`;
+    if (parsed.slug) {
+      if (parsed.slug.startsWith('id:')) {
+        profileUrl = `https://www.facebook.com/profile.php?id=${parsed.slug.slice(3)}`;
+      } else {
+        profileUrl = `https://www.facebook.com/${parsed.slug}`;
+      }
+    }
+    return {
+      label: display,
+      slugBadge: parsed.slug || undefined,
+      profileUrl,
+    };
+  };
+
   // Copy all external likers list to clipboard
   const handleCopyExternalLikers = (format: 'newline' | 'comma' = 'newline') => {
     if (!result?.unrecognizedLikers?.length) return;
-    const text = format === 'newline'
-      ? result.unrecognizedLikers.map((u) => `@${u}`).join('\n')
-      : result.unrecognizedLikers.map((u) => `@${u}`).join(', ');
+    const formattedList = result.unrecognizedLikers.map((u) =>
+      isFb ? parseFacebookIdentity(u).rawDisplay || u : `@${u}`
+    );
+    const text = format === 'newline' ? formattedList.join('\n') : formattedList.join(', ');
     navigator.clipboard.writeText(text).then(() => {
       setCopiedExternalLikers(true);
       setTimeout(() => setCopiedExternalLikers(false), 2000);
     });
   };
 
-  // Copy single username
-  const handleCopySingleUser = (username: string) => {
-    navigator.clipboard.writeText(`@${username}`).then(() => {
-      setCopiedSingleUser(username);
+  // Copy single username / FB name
+  const handleCopySingleUser = (rawUser: string) => {
+    const textToCopy = isFb ? parseFacebookIdentity(rawUser).rawDisplay || rawUser : `@${rawUser}`;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopiedSingleUser(rawUser);
       setTimeout(() => setCopiedSingleUser(null), 1500);
     });
   };
@@ -453,15 +809,18 @@ export function RekapGenerator({
   // Filtered list for the detail breakdown table
   const filteredDetailResults = useMemo(() => {
     if (!result) return [];
-    // If user filtered specifically for ORANG_LUAR only, hide standard employee rows
     if (selectedStatusFilter === 'ORANG_LUAR') return [];
 
+    const q = searchQuery.toLowerCase();
     return result.allResults.filter((item) => {
       const matchesSearch =
-        item.employee.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.employee.username1.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.employee.username2 && item.employee.username2.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        item.employee.divisi.toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        item.employee.nama.toLowerCase().includes(q) ||
+        item.employee.username1.toLowerCase().includes(q) ||
+        (item.employee.username2 && item.employee.username2.toLowerCase().includes(q)) ||
+        (item.employee.fbUsername1 && item.employee.fbUsername1.toLowerCase().includes(q)) ||
+        (item.employee.fbUsername2 && item.employee.fbUsername2.toLowerCase().includes(q)) ||
+        item.employee.divisi.toLowerCase().includes(q);
 
       const matchesDiv = selectedDivFilter === 'ALL' || item.employee.divisi === selectedDivFilter;
 
@@ -474,91 +833,238 @@ export function RekapGenerator({
     });
   }, [result, searchQuery, selectedDivFilter, selectedStatusFilter]);
 
-  // Unique divisions for filter dropdown (sorted by branch priority: NGK -> WRJ -> KTSN)
+  // Employees currently penalized (useful dropdown options when linking an unlisted account)
+  const unlikedEmployeesForLinking = useMemo(() => {
+    if (!result) return employees;
+    const unliked = result.allResults.filter((r) => !r.hasLiked).map((r) => r.employee);
+    return unliked.length > 0 ? unliked : employees;
+  }, [result, employees]);
+
+  // Unique divisions for filter dropdown
   const divisionList = useMemo(() => {
     const set = new Set<string>();
     employees.forEach((e) => set.add(e.divisi));
     return Array.from(set).sort(compareDivisions);
   }, [employees]);
 
+  // Split similarCandidates counts by risk level
+  const highRiskCount = useMemo(
+    () => result?.similarCandidates.filter((c) => c.conflictLevel === 'high_risk_different').length || 0,
+    [result]
+  );
+
   return (
-    <div className="space-y-6">
-      
-      {/* Top Banner / Quick Info */}
-      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wider">
-              Post Monitoring Engine
-            </span>
-            <span className="text-xs text-slate-500">
-              Database: <strong className="text-slate-800">{employees.length} Staff</strong>
-            </span>
+    <div className="space-y-5">
+      {/* ========================================================= */}
+      {/* UNIFIED PLATFORM SWITCHER ("SAKLAR PEMBEDA IG vs FB")     */}
+      {/* ========================================================= */}
+      <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          {/* Left: Segmented Platform Switcher */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div
+              role="group"
+              aria-label="Saklar Pembeda Mode Sosial Media"
+              className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/90 shadow-inner self-start"
+            >
+              <button
+                type="button"
+                onClick={() => handleSwitchPlatform('instagram')}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  !isFb
+                    ? 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-indigo-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Instagram className="w-4 h-4 shrink-0" />
+                <span>Mode Instagram</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                    !isFb ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  @username
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSwitchPlatform('facebook')}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  isFb
+                    ? 'bg-[#1877F2] text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Facebook className="w-4 h-4 shrink-0" />
+                <span>Mode Facebook</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                    isFb ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  Nama FB
+                </span>
+              </button>
+            </div>
+
+            <div className="space-y-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-900">
+                  {isFb ? 'Rekap Like / Tanggapan Facebook' : 'Rekap Like Postingan Instagram'}
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  &bull; Total Staf Tetap: <strong className="text-slate-800">{employees.length} Karyawan</strong> (1 Staf = Akun IG &amp; FB)
+                </span>
+              </div>
+              {!compactMode && (
+                <p className="text-[11px] text-slate-500">
+                  {isFb
+                    ? 'Mencocokkan daftar Tanggapan FB ke kolom Akun Facebook karyawan + deteksi nama mirip tapi beda orang.'
+                    : 'Mencocokkan daftar Likes IG ke kolom @username Instagram karyawan + pelacakan akun luar.'}
+                </p>
+              )}
+            </div>
           </div>
-          <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-            Pemrosesan Like & Format Rekapitulasi Denda Otomatis
-          </h2>
-          <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-            Sistem membandingkan likers dengan database karyawan, otomatis mengecualikan status Cuti/Off/HP Hilang, dan mengelompokkan personel terkena denda per divisi.
-          </p>
+
+          {/* Right Quick Actions */}
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {isFb && (onOpenFbImport || onOpenEmployeeManager) && (
+              <button
+                type="button"
+                onClick={onOpenFbImport || onOpenEmployeeManager}
+                className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-[#1877F2] border border-blue-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                title="Import khusus daftar nama/username Facebook ke data karyawan tanpa mengubah jumlah karyawan"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Import Akun FB</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsScreenshotModalOpen(true)}
+              className={`px-3.5 py-2 text-white rounded-lg text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                isFb
+                  ? 'bg-[#1877F2] hover:bg-blue-700'
+                  : 'bg-gradient-to-r from-fuchsia-600 via-rose-600 to-indigo-600 hover:from-fuchsia-700 hover:to-indigo-700'
+              }`}
+              title={`Buat screenshot panjang otomatis bukti like ${isFb ? 'Facebook' : 'Instagram'}`}
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Screenshot Panjang {isFb ? 'FB' : 'IG'}</span>
+            </button>
+
+            {onOpenSosmedReport && (
+              <button
+                type="button"
+                onClick={onOpenSosmedReport}
+                className="px-3 py-2 bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                title="Buka menu Recap Konten Harian"
+              >
+                <Instagram className="w-3.5 h-3.5" />
+                <span>Recap Konten</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onOpenConsoleGuide}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isFb ? 'text-[#1877F2]' : 'text-indigo-600'}`} />
+              <span>Script {isFb ? 'FB' : 'IG'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenEmployeeManager}
+              className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Data Karyawan ({employees.length})</span>
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setIsScreenshotModalOpen(true)}
-            className="px-3.5 py-2 bg-gradient-to-r from-fuchsia-600 via-rose-600 to-indigo-600 hover:from-fuchsia-700 hover:to-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            title="Buat screenshot panjang otomatis mirip 100% modal Likes Instagram tanpa screen recording iPhone"
+        {/* Inline Toast Feedback (replaces window.alert) */}
+        {toastNotice && (
+          <div
+            className={`px-3.5 py-2.5 rounded-lg border text-xs font-semibold flex items-center justify-between gap-2 ${
+              toastNotice.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                : toastNotice.type === 'warning'
+                ? 'bg-amber-50 border-amber-200 text-amber-900'
+                : 'bg-blue-50 border-blue-200 text-blue-900'
+            }`}
           >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Screenshot Panjang IG</span>
-          </button>
-          {onOpenSosmedReport && (
+            <div className="flex items-center gap-2">
+              {toastNotice.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              )}
+              <span>{toastNotice.message}</span>
+            </div>
             <button
-              onClick={onOpenSosmedReport}
-              className="px-3.5 py-2 bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-700 hover:to-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-              title="Buka menu Recap Konten Harian (Talent, Status Produksi & Status Upload)"
+              type="button"
+              onClick={() => setToastNotice(null)}
+              className="text-slate-400 hover:text-slate-700 cursor-pointer"
             >
-              <Instagram className="w-3.5 h-3.5" />
-              <span>Recap Konten</span>
-              <span className="text-[9px] bg-white/25 px-1 py-0.2 rounded font-mono">Harian</span>
+              <X className="w-3.5 h-3.5" />
             </button>
-          )}
-          <button
-            onClick={onOpenConsoleGuide}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Script Likers IG</span>
-          </button>
-          <button
-            onClick={onOpenEmployeeManager}
-            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Kelola Karyawan</span>
-          </button>
-        </div>
+          </div>
+        )}
+
+        {/* Helpful Banner if in Facebook Mode and some employees don't have FB accounts imported yet */}
+        {isFb && unmappedFbEmployeesCount > 0 && (
+          <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-start sm:items-center gap-2.5 text-slate-800">
+              <Facebook className="w-4 h-4 text-[#1877F2] shrink-0 mt-0.5 sm:mt-0" />
+              <span>
+                Terdapat <strong>{unmappedFbEmployeesCount} staf aktif</strong> yang kolom <strong>Username/Nama Facebook</strong>-nya masih kosong. Anda tetap bisa rekap sekarang (sistem mengecek kemiripan nama otomatis) atau import daftar akun FB sekaligus tanpa mengubah jumlah karyawan.
+              </span>
+            </div>
+            {(onOpenFbImport || onOpenEmployeeManager) && (
+              <button
+                type="button"
+                onClick={onOpenFbImport || onOpenEmployeeManager}
+                className="px-3 py-1.5 bg-[#1877F2] hover:bg-blue-700 text-white rounded-lg font-bold text-xs shrink-0 cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Import Khusus Username FB</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Grid Layout: Form Input (Left) & Output WhatsApp (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
         {/* ========================================================= */}
         {/* LEFT COLUMN: INPUT FORM & DATABASE STATUS                 */}
         {/* ========================================================= */}
         <div className="lg:col-span-7 flex flex-col gap-6">
           {/* Input Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
-            
+          <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
-                  <Instagram className="w-4 h-4" />
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    isFb ? 'bg-blue-50 text-[#1877F2]' : 'bg-indigo-50 text-indigo-600'
+                  }`}
+                >
+                  {isFb ? <Facebook className="w-4 h-4" /> : <Instagram className="w-4 h-4" />}
                 </div>
                 <div>
-                  <h2 className="font-bold text-slate-800 text-sm">Post Monitoring Input</h2>
-                  <p className="text-[11px] text-slate-400">Masukkan tautan post Instagram dan tempel daftar likers</p>
+                  <h2 className="font-bold text-slate-800 text-sm">
+                    {isFb ? 'Input Monitoring Postingan Facebook' : 'Input Monitoring Postingan Instagram'}
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    {isFb
+                      ? 'Tempel link postingan FB & daftar nama akun yang memberi Like / Tanggapan'
+                      : 'Masukkan tautan post Instagram dan tempel daftar @username likers'}
+                  </p>
                 </div>
               </div>
 
@@ -587,13 +1093,17 @@ export function RekapGenerator({
             {/* Dynamic Real-time Date Indicator */}
             <div className="flex items-center justify-between text-xs bg-slate-50/80 px-3.5 py-2 rounded-lg border border-slate-200">
               <div className="flex items-center gap-2">
-                <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                <Calendar className={`w-3.5 h-3.5 ${isFb ? 'text-[#1877F2]' : 'text-indigo-600'}`} />
                 <span className="text-slate-500">Tanggal Rekap:</span>
-                <span className={`font-mono font-bold px-2 py-0.5 rounded text-xs border ${
-                  isAutoDate 
-                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
-                    : 'bg-amber-50 text-amber-800 border-amber-200'
-                }`}>
+                <span
+                  className={`font-mono font-bold px-2 py-0.5 rounded text-xs border ${
+                    isAutoDate
+                      ? isFb
+                        ? 'bg-blue-50 text-[#1877F2] border-blue-200'
+                        : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                  }`}
+                >
                   {isAutoDate ? `${formatDateIndo(new Date())} (Otomatis Hari Ini)` : `${customDate} (Manual)`}
                 </span>
               </div>
@@ -642,7 +1152,7 @@ export function RekapGenerator({
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block flex items-center gap-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                         <Calendar className="w-3 h-3 text-slate-400" />
                         <span>Tanggal (DD/MM/YYYY)</span>
                       </label>
@@ -665,33 +1175,48 @@ export function RekapGenerator({
               </div>
             )}
 
-            {/* Step 1: URL Postingan Instagram */}
+            {/* Step 1: URL Postingan IG / FB */}
             <div>
               <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block flex items-center gap-1.5" htmlFor="url-post-input">
-                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">1</span>
-                  <span>Instagram Post URL</span>
+                <label
+                  className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5"
+                  htmlFor="url-post-input"
+                >
+                  <span
+                    className={`w-4 h-4 rounded-full text-white text-[10px] flex items-center justify-center font-bold ${
+                      isFb ? 'bg-[#1877F2]' : 'bg-indigo-600'
+                    }`}
+                  >
+                    1
+                  </span>
+                  <span>{isFb ? 'Facebook Post / Reel URL' : 'Instagram Post URL'}</span>
                 </label>
 
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setIsExtensionModalOpen(true)}
-                    className="text-[11px] text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md flex items-center gap-1 font-bold transition-colors cursor-pointer"
-                    title="Buka pop up mini ekstrak otomatis (Bookmarklet, Ekstensi Chrome, Script Console)"
+                    className={`text-[11px] px-2 py-0.5 rounded-md flex items-center gap-1 font-bold transition-colors cursor-pointer border ${
+                      isFb
+                        ? 'text-[#1877F2] bg-blue-50 hover:bg-blue-100 border-blue-200'
+                        : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'
+                    }`}
+                    title={`Buka pop up mini ekstrak otomatis ${isFb ? 'Facebook' : 'Instagram'} (Bookmarklet, Ekstensi v2.0, Script Console)`}
                   >
-                    <Chrome className="w-3 h-3 text-amber-600" />
-                    <span>⚡ Ekstrak Otomatis via Ekstensi / Bookmarklet</span>
+                    <Chrome className="w-3 h-3" />
+                    <span>⚡ Ekstrak Otomatis {isFb ? 'FB' : 'IG'} (Bookmarklet / Ekstensi)</span>
                   </button>
 
-                  {urlPost && urlPost.includes('instagram.com') && (
+                  {urlPost && (urlPost.includes('instagram.com') || urlPost.includes('facebook.com') || urlPost.includes('fb.')) && (
                     <a
                       href={urlPost}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[11px] text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-semibold normal-case"
+                      className={`text-[11px] flex items-center gap-1 font-semibold normal-case ${
+                        isFb ? 'text-[#1877F2] hover:text-blue-800' : 'text-indigo-600 hover:text-indigo-800'
+                      }`}
                     >
-                      <span>Buka IG</span>
+                      <span>Buka Post</span>
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   )}
@@ -704,7 +1229,11 @@ export function RekapGenerator({
                   type="text"
                   value={urlPost}
                   onChange={(e) => setUrlPost(e.target.value)}
-                  placeholder="https://www.instagram.com/p/..."
+                  placeholder={
+                    isFb
+                      ? 'https://www.facebook.com/share/p/... atau https://www.facebook.com/reel/...'
+                      : 'https://www.instagram.com/p/...'
+                  }
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm transition-all text-slate-900 font-medium pr-36"
                 />
                 <div className="absolute right-2 flex items-center gap-1.5">
@@ -721,69 +1250,109 @@ export function RekapGenerator({
                   <button
                     type="button"
                     onClick={() => setIsExtensionModalOpen(true)}
-                    className="text-[10px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Buka pop up mini 1-klik ekstrak likers"
+                    className={`text-[10px] font-bold text-white px-2 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer ${
+                      isFb ? 'bg-[#1877F2] hover:bg-blue-700' : 'bg-indigo-600 hover:bg-indigo-700'
+                    }`}
+                    title={`Buka pop up mini 1-klik ekstrak likers ${isFb ? 'Facebook' : 'Instagram'}`}
                   >
                     <Zap className="w-3 h-3" />
-                    <span>1-Klik Ekstrak</span>
+                    <span>1-Klik {isFb ? 'FB' : 'IG'}</span>
                   </button>
                 </div>
               </div>
+
+              {/* Smart Mismatch Nudge if user pasted FB link in IG mode or vice versa */}
+              {urlPlatformMismatch === 'should_be_fb' && (
+                <div className="mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between gap-2 text-xs text-blue-900">
+                  <span>Tautan di atas terdeteksi sebagai link <strong>Facebook</strong>. Pindah ke Mode Facebook?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const movedUrl = urlPostIg;
+                      setUrlPostFb(movedUrl);
+                      setUrlPostIg('');
+                      handleSwitchPlatform('facebook');
+                    }}
+                    className="px-2.5 py-1 bg-[#1877F2] text-white rounded-md font-bold text-[11px] cursor-pointer shrink-0"
+                  >
+                    Pindah ke Mode FB
+                  </button>
+                </div>
+              )}
+              {urlPlatformMismatch === 'should_be_ig' && (
+                <div className="mt-2 p-2.5 bg-fuchsia-50 border border-fuchsia-200 rounded-lg flex items-center justify-between gap-2 text-xs text-fuchsia-900">
+                  <span>Tautan di atas terdeteksi sebagai link <strong>Instagram</strong>. Pindah ke Mode Instagram?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const movedUrl = urlPostFb;
+                      setUrlPostIg(movedUrl);
+                      setUrlPostFb('');
+                      handleSwitchPlatform('instagram');
+                    }}
+                    className="px-2.5 py-1 bg-indigo-600 text-white rounded-md font-bold text-[11px] cursor-pointer shrink-0"
+                  >
+                    Pindah ke Mode IG
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Step 2: Daftar Likers Instagram (Textarea) */}
+            {/* Step 2: Daftar Likers Instagram / Facebook (Textarea) */}
             <div>
               <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5" htmlFor="likers-textarea">
-                    <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">2</span>
-                    <span>Username Likers List</span>
+                  <label
+                    className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5"
+                    htmlFor="likers-textarea"
+                  >
+                    <span
+                      className={`w-4 h-4 rounded-full text-white text-[10px] flex items-center justify-center font-bold ${
+                        isFb ? 'bg-[#1877F2]' : 'bg-indigo-600'
+                      }`}
+                    >
+                      2
+                    </span>
+                    <span>{isFb ? 'Daftar Nama / Akun Likers Facebook' : 'Username Likers Instagram'}</span>
                   </label>
                   {detectedUsernames.length > 0 && (
                     <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                      {detectedUsernames.length} User Terdeteksi
-                    </span>
-                  )}
-                  {(rawLikersText || urlPost) && (
-                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" title="Data tersimpan di browser secara otomatis sehingga aman saat diminimize atau berpindah tab">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <span>Aman Saat Minimize</span>
+                      {detectedUsernames.length} Akun {isFb ? 'FB' : 'IG'} Terdeteksi
                     </span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {/* Tombol Hapus Otomatis (1-Klik Bersihkan Link & Likers Sebelumnya) */}
                   {(rawLikersText || urlPost) && (
                     <button
                       type="button"
                       onClick={handleAutoClear}
-                      className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
-                      title="Sekali klik untuk menghapus link Instagram dan seluruh daftar username likers sebelumnya"
+                      className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all flex items-center gap-1 cursor-pointer"
+                      title={`Hapus link dan daftar likers ${isFb ? 'Facebook' : 'Instagram'} saat ini`}
                     >
                       <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                      <span>Hapus Otomatis (Link & Likers)</span>
+                      <span>Hapus</span>
                     </button>
                   )}
 
                   <button
                     type="button"
                     onClick={() => setIsScreenshotModalOpen(true)}
-                    className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-gradient-to-r from-fuchsia-50 to-pink-50 hover:from-fuchsia-100 hover:to-pink-100 text-fuchsia-800 border border-fuchsia-200 transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
-                    title="Buka generator screenshot panjang bukti like Instagram (100% mirip modal IG asli)"
+                    className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-fuchsia-50 hover:bg-fuchsia-100 text-fuchsia-800 border border-fuchsia-200 transition-all flex items-center gap-1 cursor-pointer"
                   >
                     <Camera className="w-3.5 h-3.5 text-fuchsia-600" />
-                    <span>Screenshot Panjang</span>
+                    <span>Screenshot</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handlePasteFromClipboard}
-                    className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white transition-all flex items-center gap-1 cursor-pointer shadow-xs"
-                    title="Tempel langsung dari clipboard dan jalankan rekap otomatis"
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-md text-white transition-all flex items-center gap-1 cursor-pointer ${
+                      isFb ? 'bg-[#1877F2] hover:bg-blue-700' : 'bg-indigo-600 hover:bg-indigo-700'
+                    }`}
                   >
                     <Clipboard className="w-3 h-3" />
-                    <span>Tempel dari Clipboard</span>
+                    <span>Tempel Clipboard</span>
                   </button>
 
                   <button
@@ -791,24 +1360,30 @@ export function RekapGenerator({
                     onClick={handleCopyBookmarklet}
                     className={`text-[11px] font-bold px-2 py-1 rounded-md border transition-all flex items-center gap-1 cursor-pointer ${
                       copiedBookmarklet
-                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        : isFb
+                        ? 'bg-blue-50 text-[#1877F2] border-blue-200 hover:bg-blue-100'
                         : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
                     }`}
-                    title="Salin kode Bookmarklet 1-Klik"
+                    title={`Salin kode Bookmarklet khusus ${isFb ? 'Facebook' : 'Instagram'}`}
                   >
-                    <Bookmark className="w-3 h-3 text-amber-600" />
-                    <span>{copiedBookmarklet ? 'Bookmarklet Tersalin!' : 'Bookmarklet'}</span>
+                    <Bookmark className="w-3 h-3" />
+                    <span>
+                      {copiedBookmarklet
+                        ? `Bookmarklet ${isFb ? 'FB' : 'IG'} Tersalin!`
+                        : `Bookmarklet ${isFb ? 'FB' : 'IG'}`}
+                    </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handleCopyScript}
                     className={`text-[11px] font-bold px-2 py-1 rounded-md border transition-all flex items-center gap-1 cursor-pointer ${
-                      copiedScript 
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                      copiedScript
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                     }`}
-                    title="Salin script console browser F12"
+                    title={`Salin script console F12 khusus ${isFb ? 'Facebook' : 'Instagram'}`}
                   >
                     {copiedScript ? (
                       <>
@@ -818,7 +1393,7 @@ export function RekapGenerator({
                     ) : (
                       <>
                         <Terminal className="w-3 h-3 text-slate-600" />
-                        <span>Script F12</span>
+                        <span>Script F12 {isFb ? 'FB' : 'IG'}</span>
                       </>
                     )}
                   </button>
@@ -827,17 +1402,20 @@ export function RekapGenerator({
                     type="button"
                     onClick={handleFillSample}
                     className="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded-md border border-slate-200 cursor-pointer flex items-center gap-1"
-                    title="Simulasi jika ada karyawan yang belum like (denda)"
+                    title={
+                      isFb
+                        ? 'Simulasi data Facebook lengkap dengan contoh nama mirip tapi beda orang'
+                        : 'Simulasi jika ada karyawan yang belum like IG'
+                    }
                   >
                     <Sparkles className="w-3 h-3 text-amber-500" />
-                    <span>Demo Denda</span>
+                    <span>{isFb ? 'Demo FB + Nama Mirip' : 'Demo Denda'}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handleFillAllLikedSample}
                     className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded-md border border-emerald-200 cursor-pointer flex items-center gap-1"
-                    title="Simulasi jika semua karyawan sudah like (output: LIKE DONE)"
                   >
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                     <span>Demo LIKE DONE</span>
@@ -850,59 +1428,80 @@ export function RekapGenerator({
                 rows={6}
                 value={rawLikersText}
                 onChange={(e) => setRawLikersText(e.target.value)}
-                placeholder="Tempel (Ctrl + V) hasil copy dari Bookmarklet atau Console F12 Instagram di sini..."
+                placeholder={
+                  isFb
+                    ? 'Tempel (Ctrl + V) daftar nama akun Facebook hasil Bookmarklet FB / Ekstensi v2.0 / Console F12 di sini (1 baris 1 nama, contoh: Binti Andini)...'
+                    : 'Tempel (Ctrl + V) hasil copy dari Bookmarklet IG atau Console F12 Instagram di sini...'
+                }
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm resize-none font-mono transition-all text-slate-800 custom-scrollbar leading-relaxed"
               />
 
-              {/* Notification Banner when Auto Clear is clicked */}
               {clearFeedback && (
-                <div className="mt-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 flex items-center gap-2 animate-in fade-in duration-200 shadow-xs">
+                <div className="mt-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Link postingan dan seluruh daftar username likers sebelumnya berhasil dihapus! Siap untuk postingan berikutnya.</span>
+                  <span>
+                    Link postingan dan daftar likers {isFb ? 'Facebook' : 'Instagram'} berhasil dibersihkan!
+                  </span>
                 </div>
               )}
 
-              {/* Informational Workflow Callout when Empty */}
-              {!rawLikersText && (
-                <div className="mt-2.5 p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs space-y-2">
-                  <div className="flex items-start gap-2 text-indigo-950">
-                    <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              {/* Workflow Callout when Empty */}
+              {!rawLikersText && !compactMode && (
+                <div
+                  className={`mt-2.5 p-3.5 rounded-xl text-xs space-y-2 border ${
+                    isFb ? 'bg-blue-50/60 border-blue-200/80' : 'bg-indigo-50/70 border-indigo-100'
+                  }`}
+                >
+                  <div className="flex items-start gap-2 text-slate-900">
+                    <Info className={`w-4 h-4 shrink-0 mt-0.5 ${isFb ? 'text-[#1877F2]' : 'text-indigo-600'}`} />
                     <div className="space-y-1">
-                      <p className="font-bold text-indigo-900">
-                        Cara Cepat Mengambil Likers (Hanya 3 Detik):
+                      <p className="font-bold">
+                        {isFb
+                          ? 'Cara Mengambil Daftar Like / Tanggapan Facebook (Otomatis):'
+                          : 'Cara Cepat Mengambil Likers Instagram (Hanya 3 Detik):'}
                       </p>
-                      <ol className="list-decimal pl-4 space-y-1 text-slate-700 text-[11px]">
-                        <li>Buka post di IG Web &gt; Klik jumlah <strong>"Likes/Suka"</strong> agar modal daftar orang yang like muncul.</li>
-                        <li>Klik <strong>Bookmarklet</strong> di browser atau tekan <strong>F12</strong> (Console) &gt; jalankan script likers.</li>
-                        <li>Daftar likers langsung otomatis tersalin. Kembali ke sini lalu tekan <strong>Ctrl + V</strong> (atau tombol Tempel dari Clipboard)!</li>
-                        <li><strong className="text-emerald-700">Data otomatis tersimpan di browser</strong>, jadi aman dan tidak akan hilang saat aplikasi di-minimize.</li>
-                      </ol>
+                      {isFb ? (
+                        <ol className="list-decimal pl-4 space-y-1 text-slate-700 text-[11px]">
+                          <li>
+                            Buka postingan di <strong>Facebook Web</strong> &gt; Klik ikon jumlah <strong>👍❤️ Tanggapan / Suka</strong> agar jendela daftar orang yang menanggapi terbuka.
+                          </li>
+                          <li>
+                            Gunakan <strong>Bookmarklet Khusus FB</strong> (atau <strong>Ekstensi Chrome v2.0 Universal IG+FB</strong>). Bookmarklet IG lama tidak bisa dipakai di FB karena struktur dialog FB berbeda.
+                          </li>
+                          <li>
+                            Daftar nama lengkap + username profil FB otomatis tersalin &amp; bersih dari teks <em>&quot;Tambah Teman&quot;</em>. Tempel (<strong>Ctrl + V</strong>) di kotak atas!
+                          </li>
+                        </ol>
+                      ) : (
+                        <ol className="list-decimal pl-4 space-y-1 text-slate-700 text-[11px]">
+                          <li>
+                            Buka post di IG Web &gt; Klik jumlah <strong>&quot;Likes/Suka&quot;</strong> agar modal daftar orang yang like muncul.
+                          </li>
+                          <li>
+                            Klik <strong>Bookmarklet IG</strong> di browser atau gunakan <strong>Ekstensi Chrome v2.0</strong>.
+                          </li>
+                          <li>
+                            Daftar @username otomatis tersalin. Kembali ke sini lalu tekan <strong>Ctrl + V</strong>!
+                          </li>
+                        </ol>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-indigo-100/60 text-[11px]">
-                    <span className="text-slate-500">Hasil tempel akan tersimpan otomatis dan dapat dihapus dalam sekali klik dengan tombol Hapus Otomatis.</span>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-[11px]">
+                    <span className="text-slate-500">
+                      Input Mode IG &amp; Mode FB disimpan terpisah sehingga aman saat saklar digeser.
+                    </span>
                     <button
                       type="button"
-                      onClick={() => setIsQuickGuideOpen(true)}
-                      className="text-indigo-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                      onClick={() => setIsExtensionModalOpen(true)}
+                      className={`font-bold hover:underline cursor-pointer flex items-center gap-1 ${
+                        isFb ? 'text-[#1877F2]' : 'text-indigo-700'
+                      }`}
                     >
-                      <span>Lihat Panduan Bergambar</span>
+                      <span>Pasang Bookmarklet / Ekstensi {isFb ? 'FB' : 'IG'}</span>
                       <ArrowRight className="w-3 h-3" />
                     </button>
                   </div>
-                </div>
-              )}
-
-              {rawLikersText && (
-                <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 mt-1.5 gap-2">
-                  <span>✅ Format didukung: @username, baris baru, koma, spasi, atau output console. Data tersimpan otomatis.</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsQuickGuideOpen(true)}
-                    className="text-indigo-600 hover:underline font-semibold cursor-pointer"
-                  >
-                    Bantuan Console IG &rarr;
-                  </button>
                 </div>
               )}
             </div>
@@ -915,23 +1514,23 @@ export function RekapGenerator({
                   type="button"
                   onClick={handleProcess}
                   disabled={isProcessing}
-                  className={`flex-1 font-bold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
+                  className={`flex-1 font-bold py-3.5 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer ${
                     isProcessing
-                      ? 'bg-slate-300 text-slate-500 shadow-none cursor-not-allowed'
-                      : !rawLikersText.trim()
-                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100 active:scale-[0.99]'
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 active:scale-[0.99]'
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                      : isFb
+                      ? 'bg-[#1877F2] hover:bg-blue-700 text-white active:scale-[0.99]'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-[0.99]'
                   }`}
                 >
                   {isProcessing ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Memproses Data Likers...</span>
+                      <span>Memproses Data Likers {isFb ? 'Facebook' : 'Instagram'}...</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-4 h-4" />
-                      <span>Langkah 3: Proses & Buat Rekap WA</span>
+                      <span>Langkah 3: Proses &amp; Buat Rekap WA ({isFb ? 'Mode Facebook' : 'Mode Instagram'})</span>
                     </>
                   )}
                 </button>
@@ -940,68 +1539,72 @@ export function RekapGenerator({
                   <button
                     type="button"
                     onClick={handleAutoClear}
-                    className="sm:w-auto px-4 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-[0.98]"
-                    title="Sekali klik untuk menghapus link Instagram dan seluruh daftar username likers sebelumnya"
+                    className="sm:w-auto px-4 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4 text-rose-600" />
-                    <span className="whitespace-nowrap">Hapus Otomatis</span>
+                    <span className="whitespace-nowrap">Hapus Input</span>
                   </button>
                 )}
               </div>
-              {!rawLikersText.trim() && (
-                <p className="text-center text-[11px] text-slate-400">
-                  * Isi kotak username likers di atas atau klik <strong>"Demo KTSN"</strong> untuk mencoba langsung.
-                </p>
-              )}
             </div>
-
           </div>
 
-          {/* Database Quick View Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
-            <div className="flex justify-between items-center mb-3">
+          {/* Database Quick View Table (Shows BOTH IG and FB for the same employee rows) */}
+          <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 flex flex-col">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-800">Employee Database Status</h3>
-                <p className="text-[11px] text-slate-400">Ringkasan status karyawan toko {storeCode}</p>
+                <h3 className="text-sm font-bold text-slate-800">
+                  Ringkasan Database Karyawan (1 Staf = Akun IG &amp; FB)
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Total jumlah staf tetap sama ({employees.length} orang), masing-masing memiliki kolom IG &amp; FB terpisah
+                </p>
               </div>
-              <span className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-600 font-bold uppercase tracking-wider">
+              <span className="text-[10px] bg-slate-100 px-2.5 py-1 rounded-md text-slate-700 font-bold uppercase tracking-wider">
                 {employees.length} Total Staff
               </span>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="text-slate-400 border-b border-slate-100">
-                    <th className="pb-2 font-semibold uppercase text-[10px]">Name</th>
-                    <th className="pb-2 font-semibold uppercase text-[10px]">Division</th>
-                    <th className="pb-2 font-semibold uppercase text-[10px]">Status</th>
+                    <th className="pb-2 font-semibold uppercase text-[10px]">Nama</th>
+                    <th className="pb-2 font-semibold uppercase text-[10px]">Divisi</th>
                     <th className="pb-2 font-semibold uppercase text-[10px]">Instagram</th>
-                    <th className="pb-2 font-semibold text-right uppercase text-[10px]">Action</th>
+                    <th className="pb-2 font-semibold uppercase text-[10px]">Facebook</th>
+                    <th className="pb-2 font-semibold text-right uppercase text-[10px]">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {employees.slice(0, 5).map((emp) => (
                     <tr key={emp.id} className="hover:bg-slate-50/50">
-                      <td className="py-2 font-medium text-slate-900">{emp.nama}</td>
+                      <td className="py-2 font-semibold text-slate-900">{emp.nama}</td>
                       <td className="py-2 text-slate-600">{emp.divisi}</td>
-                      <td className="py-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          emp.status === 'Normal'
-                            ? 'text-emerald-600 bg-emerald-50'
-                            : 'text-orange-600 bg-orange-50'
-                        }`}>
+                      <td
+                        className={`py-2 font-mono text-[11px] ${
+                          !isFb ? 'text-indigo-700 font-semibold' : 'text-slate-500'
+                        }`}
+                      >
+                        {emp.username1 ? `@${emp.username1}` : '-'}
+                      </td>
+                      <td
+                        className={`py-2 text-[11px] ${
+                          isFb ? 'text-[#1877F2] font-semibold' : 'text-slate-600'
+                        }`}
+                      >
+                        {emp.fbUsername1 || <span className="text-amber-600 italic">Belum diisi</span>}
+                      </td>
+                      <td className="py-2 text-right">
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            emp.status === 'Normal'
+                              ? 'text-emerald-700 bg-emerald-50'
+                              : 'text-orange-700 bg-orange-50'
+                          }`}
+                        >
                           {emp.status.toUpperCase()}
                         </span>
-                      </td>
-                      <td className="py-2 font-mono text-[11px] text-slate-500">@{emp.username1}</td>
-                      <td className="py-2 text-right">
-                        <button
-                          onClick={onOpenEmployeeManager}
-                          className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer text-xs"
-                        >
-                          Kelola
-                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1009,18 +1612,22 @@ export function RekapGenerator({
               </table>
             </div>
 
-            <div className="pt-3 border-t border-slate-50 flex items-center justify-between text-xs text-slate-500">
-              <span>{employees.length} staf terdaftar</span>
+            <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+              <span>Menampilkan 5 dari {employees.length} staf terdaftar</span>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={onOpenEmployeeManager}
-                  className="text-emerald-700 hover:text-emerald-900 font-semibold cursor-pointer flex items-center gap-1"
-                >
-                  <Sparkles className="w-3 h-3 text-emerald-600" />
-                  <span>Import dari Sheet Anda</span>
-                </button>
+                {(onOpenFbImport || onOpenEmployeeManager) && (
+                  <button
+                    type="button"
+                    onClick={onOpenFbImport || onOpenEmployeeManager}
+                    className="text-[#1877F2] hover:underline font-semibold cursor-pointer flex items-center gap-1"
+                  >
+                    <Facebook className="w-3 h-3" />
+                    <span>Import Khusus Akun FB</span>
+                  </button>
+                )}
                 <span className="text-slate-300">|</span>
                 <button
+                  type="button"
                   onClick={onOpenEmployeeManager}
                   className="text-indigo-600 hover:underline font-semibold cursor-pointer"
                 >
@@ -1029,33 +1636,43 @@ export function RekapGenerator({
               </div>
             </div>
           </div>
-
         </div>
 
         {/* ========================================================= */}
         {/* RIGHT COLUMN: OUTPUT WHATSAPP & DEPLOY GUIDE               */}
         {/* ========================================================= */}
         <div className="lg:col-span-5 flex flex-col gap-6">
-          
           {/* Output Preview (Dark Professional Terminal) */}
           <div className="bg-slate-900 rounded-xl shadow-xl p-5 flex flex-col gap-4 border border-slate-800">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center gap-2">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center text-white">
-                  <Send className="w-4 h-4" />
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center text-white ${
+                    isFb ? 'bg-[#1877F2]' : 'bg-white/10'
+                  }`}
+                >
+                  {isFb ? <Facebook className="w-4 h-4" /> : <Send className="w-4 h-4" />}
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">WhatsApp Output Preview</h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-sm font-bold text-white">WhatsApp Output Preview</h3>
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                        isFb ? 'bg-blue-500/30 text-blue-200 border border-blue-400/30' : 'bg-fuchsia-500/25 text-fuchsia-200 border border-fuchsia-400/30'
+                      }`}
+                    >
+                      {isFb ? 'FACEBOOK' : 'INSTAGRAM'}
+                    </span>
+                  </div>
                   <p className="text-[11px] text-slate-400">Siap disalin atau diteruskan ke grup</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
                 {(result || urlPost || rawLikersText) && (
                   <button
                     type="button"
                     onClick={handleAutoClear}
-                    className="px-2.5 py-1.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 shadow-xs active:scale-95"
-                    title="Sekali klik untuk menghapus link & username untuk rekap berikutnya"
+                    className="px-2.5 py-1.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40"
                   >
                     <Trash2 className="w-3 h-3 text-rose-400" />
                     <span>HAPUS</span>
@@ -1068,31 +1685,16 @@ export function RekapGenerator({
                   disabled={!result}
                   className={`px-2.5 py-1.5 rounded text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                     result
-                      ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 shadow-xs'
+                      ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40'
                       : 'bg-white/5 text-slate-500 cursor-not-allowed'
                   }`}
-                  title="Tampilkan Barcode QR untuk discan langsung dari kamera HP Anda"
                 >
                   <QrCode className="w-3 h-3 text-amber-400" />
-                  <span>BARCODE HP</span>
+                  <span>BARCODE</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setIsScreenshotModalOpen(true)}
-                  disabled={!result}
-                  className={`px-2.5 py-1.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                    result
-                      ? 'bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-300 border border-fuchsia-500/40 shadow-xs'
-                      : 'bg-white/5 text-slate-500 cursor-not-allowed'
-                  }`}
-                  title="Buat dan unduh screenshot panjang bukti like Instagram (100% mirip modal IG asli)"
-                >
-                  <Camera className="w-3 h-3 text-fuchsia-400" />
-                  <span>SCREENSHOT</span>
-                </button>
-
-                <button
                   onClick={handleCopy}
                   disabled={!result}
                   className={`px-3 py-1.5 rounded text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
@@ -1122,7 +1724,11 @@ export function RekapGenerator({
                 </div>
                 <div>
                   <span className="text-[9px] text-rose-400 font-bold block uppercase">Denda</span>
-                  <span className={`text-sm font-bold ${result.totalDenda === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  <span
+                    className={`text-sm font-bold ${
+                      result.totalDenda === 0 ? 'text-emerald-400' : 'text-rose-400'
+                    }`}
+                  >
                     {result.totalDenda}
                   </span>
                 </div>
@@ -1131,9 +1737,27 @@ export function RekapGenerator({
                   <span className="text-sm font-bold text-amber-400">{result.totalExempt}</span>
                 </div>
                 <div className="border-l border-slate-700 pl-1">
-                  <span className="text-[9px] text-cyan-400 font-bold block uppercase" title="Orang luar / non-karyawan yang me-like postingan">Luar (IG)</span>
+                  <span
+                    className="text-[9px] text-cyan-400 font-bold block uppercase"
+                    title="Akun yang like tapi tidak tercantum di data karyawan"
+                  >
+                    Non-Data
+                  </span>
                   <span className="text-sm font-bold text-cyan-300 font-mono">
                     {result.unrecognizedLikers?.length || 0}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Notice inside terminal panel if similarity candidates need verification */}
+            {result && result.similarCandidates.length > 0 && (
+              <div className="bg-amber-950/60 border border-amber-500/40 rounded-lg p-2.5 text-[11px] text-amber-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    Terdeteksi <strong>{result.similarCandidates.length} nama mirip</strong>
+                    {highRiskCount > 0 ? ` (${highRiskCount} rawan beda orang)` : ''}. Cek panel verifikasi di bawah!
                   </span>
                 </div>
               </div>
@@ -1148,7 +1772,7 @@ export function RekapGenerator({
                 <div>
                   <p className="font-bold text-emerald-300">SELURUH KARYAWAN SUDAH LIKE</p>
                   <p className="text-[11px] text-emerald-400/80">
-                    Output disetel otomatis menjadi <b>"LIKE DONE"</b> karena 0 denda.
+                    Output disetel otomatis menjadi <b>&quot;LIKE DONE&quot;</b> karena 0 denda.
                   </p>
                 </div>
               </div>
@@ -1160,17 +1784,15 @@ export function RekapGenerator({
                 result.waTextOutput
               ) : (
                 <span className="text-slate-500">
-                  DATA LIKE [DD/MM/YYYY] {storeCode}{'\n'}
-                  https://www.instagram.com/p/...{'\n\n'}
-                  #STORE FRONT{'\n'}
-                  • Andi Pratama{'\n'}
-                  • Rina Sari{'\n\n'}
-                  #WAREHOUSE{'\n'}
-                  • Dedi Kurniawan{'\n\n'}
-                  #MANAGEMENT{'\n'}
+                  {isFb ? `DATA LIKE FACEBOOK [DD/MM/YYYY] ${storeCode}` : `DATA LIKE [DD/MM/YYYY] ${storeCode}`}
+                  {'\n'}
+                  {isFb ? 'https://www.facebook.com/share/p/...' : 'https://www.instagram.com/p/...'}
+                  {'\n\n'}
+                  #ADMIN KTSN{'\n'}
+                  • Nama Karyawan{'\n\n'}
+                  #FL HP KTSN{'\n'}
                   • (Semua Like){'\n\n'}
-                  Total Denda: 3 Personel{'\n\n'}
-                  (Jika semua like, otomatis: LIKE DONE)
+                  Total Denda: 1 Personel
                 </span>
               )}
             </div>
@@ -1213,10 +1835,9 @@ export function RekapGenerator({
                 disabled={!result}
                 className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   result
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md shadow-amber-500/20 active:scale-[0.98]'
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
                     : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
                 }`}
-                title="Tampilkan barcode QR untuk discan langsung dari kamera HP Anda"
               >
                 <QrCode className="w-3.5 h-3.5" />
                 <span>Barcode HP</span>
@@ -1228,54 +1849,34 @@ export function RekapGenerator({
                 disabled={!result}
                 className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   result
-                    ? 'bg-gradient-to-r from-fuchsia-600 to-pink-600 hover:from-fuchsia-700 hover:to-pink-700 text-white shadow-md shadow-fuchsia-500/20 active:scale-[0.98]'
+                    ? isFb
+                      ? 'bg-[#1877F2] hover:bg-blue-700 text-white'
+                      : 'bg-fuchsia-600 hover:bg-fuchsia-700 text-white'
                     : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
                 }`}
-                title="Buat dan download screenshot panjang bukti like Instagram (100% mirip modal IG asli)"
               >
                 <Camera className="w-3.5 h-3.5" />
                 <span>Screenshot</span>
               </button>
             </div>
 
-            {/* Quick 1-Click Clear / Reset for Next Post */}
             {result && (
-              <div>
-                <button
-                  type="button"
-                  onClick={handleAutoClear}
-                  className="w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-slate-800/80 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700/60 hover:border-rose-500/30 shadow-xs"
-                  title="Hapus data rekap ini dan bersihkan link & username untuk postingan berikutnya"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Selesai & Hapus Otomatis (Siap Posting Baru)</span>
-                </button>
-              </div>
-            )}
-
-            {/* Quick Helper Banner: WA Laptop Susah / Lemot Buka */}
-            {result && (
-              <div className="bg-gradient-to-r from-amber-950/40 via-slate-800/90 to-slate-800/90 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between gap-3">
+              <div className="bg-slate-800/90 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-400/30 text-amber-400 flex items-center justify-center shrink-0">
                     <Smartphone className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span>WA di Laptop Susah Buka?</span>
-                      <span className="text-[9px] text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded font-bold border border-amber-500/30">
-                        Scan Barcode
-                      </span>
-                    </div>
+                    <div className="text-xs font-bold text-white">WA di Laptop Susah Buka?</div>
                     <p className="text-[11px] text-slate-300">
-                      Scan barcode di layar &rarr; teks rekap denda langsung pindah ke WhatsApp HP Anda.
+                      Scan barcode &rarr; teks rekap langsung pindah ke WhatsApp HP Anda.
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsBarcodeModalOpen(true)}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-1.5 shrink-0 shadow-sm transition-colors cursor-pointer"
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
                   <QrCode className="w-3.5 h-3.5" />
                   <span>Scan di HP</span>
@@ -1285,103 +1886,270 @@ export function RekapGenerator({
           </div>
 
           {/* Setup Instruction & Deployment Card */}
-          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-                <Info className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span>Opsi Deployment Web App</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsNetlifyGuideOpen(true)}
-                className="text-[11px] font-bold text-teal-700 bg-teal-100 hover:bg-teal-200 px-2.5 py-1 rounded-lg border border-teal-300 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span>Deploy Netlify &rarr;</span>
-              </button>
-            </div>
-            <p className="text-xs text-indigo-950 leading-relaxed">
-              Aplikasi ini siap dipakai baik sebagai <b>Netlify Web App</b> mandiri maupun sebagai <b>Google Apps Script</b> terintegrasi langsung di Google Spreadsheet Anda.
-            </p>
-            <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-              <button
-                type="button"
-                onClick={() => setIsNetlifyGuideOpen(true)}
-                className="p-2.5 bg-white border border-teal-200 rounded-lg hover:border-teal-400 text-left transition-all cursor-pointer space-y-0.5"
-              >
-                <div className="font-bold text-teal-900 flex items-center gap-1 text-[11px]">
-                  <Rocket className="w-3.5 h-3.5 text-teal-600" />
-                  <span>1. Deploy ke Netlify</span>
-                </div>
-                <p className="text-[10px] text-slate-500">Gratis, cepat, URL kustom, drag & drop</p>
-              </button>
+          {!compactMode && (
+            <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>Alat Ekstraktor IG &amp; FB v2.0</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsExtensionModalOpen(true)}
+                  className="text-[11px] font-bold text-indigo-700 bg-white hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Chrome className="w-3.5 h-3.5" />
+                  <span>Buka Ekstraktor &rarr;</span>
+                </button>
+              </div>
+              <p className="text-xs text-indigo-950 leading-relaxed">
+                Gunakan <b>Ekstensi Chrome Universal v2.0</b> (1 ekstensi mendukung saklar Instagram &amp; Facebook sekaligus) atau pasang Bookmarklet terpisah untuk IG &amp; FB.
+              </p>
+              <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setIsNetlifyGuideOpen(true)}
+                  className="p-2.5 bg-white border border-teal-200 rounded-lg hover:border-teal-400 text-left transition-all cursor-pointer space-y-0.5"
+                >
+                  <div className="font-bold text-teal-900 flex items-center gap-1 text-[11px]">
+                    <Rocket className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Deploy ke Netlify</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500">Web App siap online gratis</p>
+                </button>
 
-              <button
-                type="button"
-                onClick={onOpenConsoleGuide}
-                className="p-2.5 bg-white border border-indigo-200 rounded-lg hover:border-indigo-400 text-left transition-all cursor-pointer space-y-0.5"
-              >
-                <div className="font-bold text-indigo-900 flex items-center gap-1 text-[11px]">
-                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>2. Google Apps Script</span>
-                </div>
-                <p className="text-[10px] text-slate-500">Langsung di menu Spreadsheet Anda</p>
-              </button>
+                <button
+                  type="button"
+                  onClick={onOpenConsoleGuide}
+                  className="p-2.5 bg-white border border-indigo-200 rounded-lg hover:border-indigo-400 text-left transition-all cursor-pointer space-y-0.5"
+                >
+                  <div className="font-bold text-indigo-900 flex items-center gap-1 text-[11px]">
+                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Script &amp; Apps Script</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500">Script Console IG/FB &amp; Sheets</p>
+                </button>
+              </div>
             </div>
-          </div>
-
+          )}
         </div>
-
       </div>
 
       {/* ========================================================= */}
-      {/* DETAILED EMPLOYEE BREAKDOWN TABLE & ORANG LUAR SECTION     */}
+      {/* SMART SIMILARITY & FALSE-POSITIVE PROTECTION PANEL         */}
+      {/* ("kadang ada nama yang mirip tetap beda")                  */}
+      {/* ========================================================= */}
+      {result && (result.similarCandidates.length > 0 || rejectedPairKeys.length > 0) && (
+        <div className="bg-white rounded-xl p-5 border border-amber-300 shadow-xs space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 border border-amber-300 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Deteksi Kemiripan Nama &amp; Proteksi Nama Mirip Tapi Beda Orang
+                  </h3>
+                  {result.similarCandidates.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                      {result.similarCandidates.length} Perlu Konfirmasi
+                    </span>
+                  )}
+                  {highRiskCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                      ⚠️ {highRiskCount} Awas Beda Orang!
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Sistem sengaja <strong>tidak langsung menganggap sudah like</strong> pada akun yang namanya mirip sebagian agar tidak salah rekap jika ada orang luar yang namanya kebetulan mirip karyawan. Konfirmasi cukup 1 klik:
+                </p>
+              </div>
+            </div>
+
+            {rejectedPairKeys.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setRejectedPairKeys([])}
+                className="text-[11px] font-semibold text-slate-600 hover:text-indigo-700 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center gap-1.5 cursor-pointer self-start md:self-auto shrink-0"
+                title="Tampilkan kembali pasangan nama mirip yang sebelumnya pernah ditandai Beda Orang"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Daftar &quot;Beda Orang&quot; ({rejectedPairKeys.length})</span>
+              </button>
+            )}
+          </div>
+
+          {result.similarCandidates.length > 0 ? (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              {result.similarCandidates.map((cand) => {
+                const isHighRisk = cand.conflictLevel === 'high_risk_different';
+                const isLikelySame = cand.conflictLevel === 'likely_same';
+
+                return (
+                  <div
+                    key={cand.id}
+                    className={`p-3.5 rounded-xl border flex flex-col justify-between gap-3 ${
+                      isHighRisk
+                        ? 'bg-rose-50/50 border-rose-200'
+                        : isLikelySame
+                        ? 'bg-emerald-50/40 border-emerald-200'
+                        : 'bg-amber-50/40 border-amber-200'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      {/* Top Risk Badge + Score */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                            isHighRisk
+                              ? 'bg-rose-100 text-rose-900 border-rose-300'
+                              : isLikelySame
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              : 'bg-amber-100 text-amber-900 border-amber-300'
+                          }`}
+                        >
+                          {isHighRisk
+                            ? '⚠️ AWAS BEDA ORANG (Nama Mirip Tapi Beda)'
+                            : isLikelySame
+                            ? '✨ Kemungkinan Besar Akun Karyawan Sama'
+                            : '🔍 Nama Mirip Sebagian — Cek Manual'}
+                        </span>
+                        <span className="text-[11px] font-mono font-bold text-slate-600">
+                          Kemiripan: {cand.similarityScore}%
+                        </span>
+                      </div>
+
+                      {/* Side-by-side Comparison */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white p-2.5 rounded-lg border border-slate-200/80 text-xs">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                            Akun yang Like ({isFb ? 'FB' : 'IG'}):
+                          </span>
+                          <span className="font-bold text-slate-900 break-all">
+                            {isFb ? parseFacebookIdentity(cand.likerRaw).rawDisplay || cand.likerRaw : `@${cand.likerRaw}`}
+                          </span>
+                        </div>
+                        <div className="sm:border-l sm:border-slate-100 sm:pl-2.5">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                            Karyawan Belum Like ({cand.employee.divisi}):
+                          </span>
+                          <span className="font-bold text-indigo-900">{cand.employee.nama}</span>
+                          <span className="block text-[10px] text-slate-500">
+                            Data pembanding: <strong>{cand.comparedAgainst}</strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Reason / Warning */}
+                      <p
+                        className={`text-[11px] leading-relaxed ${
+                          isHighRisk ? 'text-rose-800 font-medium' : 'text-slate-600'
+                        }`}
+                      >
+                        {cand.reason}
+                        {cand.hasEmployeeCollision && cand.conflictingEmployeeNames?.length ? (
+                          <span className="block mt-0.5 font-semibold text-rose-700">
+                            ⚠️ Nama depan ini juga dimiliki beberapa staf: {cand.conflictingEmployeeNames.join(', ')}.
+                          </span>
+                        ) : null}
+                      </p>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200/60">
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmCandidate(cand, false)}
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Anggap orang yang sama untuk postingan ini saja"
+                      >
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>Benar Sama (Tandai Like)</span>
+                      </button>
+
+                      {setEmployees && (
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmCandidate(cand, true)}
+                          className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                          title={`Simpan permanen sebagai akun ${isFb ? 'Facebook' : 'Instagram'} milik ${cand.employee.nama}`}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Sama &amp; Simpan ke Akun {isFb ? 'FB' : 'IG'}</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleRejectCandidate(cand)}
+                        className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors ml-auto"
+                        title="Beda orang! Jangan samakan (karyawan tetap kena denda & akun tetap di daftar non-data)"
+                      >
+                        <UserX className="w-3.5 h-3.5" />
+                        <span>Beda Orang (Pisahkan)</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">
+              Semua kandidat nama mirip sudah dikonfirmasi atau dipisahkan sebagai &quot;Beda Orang&quot;.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* DETAILED EMPLOYEE BREAKDOWN TABLE & UNLISTED ACCOUNTS      */}
       {/* ========================================================= */}
       {result && (
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-4">
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-xs space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-bold text-slate-900">
-                  Rincian Status Setiap Karyawan &amp; Akun Luar
+                  Rincian Status Karyawan ({isFb ? 'Mode Facebook' : 'Mode Instagram'}) &amp; Akun Tidak Tercantum
                 </h3>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
                   {filteredDetailResults.length} dari {result.allResults.length} Karyawan
                 </span>
                 <button
                   type="button"
-                  onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'ORANG_LUAR' ? 'ALL' : 'ORANG_LUAR')}
-                  className={`text-xs font-bold px-2.5 py-0.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer border ${
+                  onClick={() =>
+                    setSelectedStatusFilter(selectedStatusFilter === 'ORANG_LUAR' ? 'ALL' : 'ORANG_LUAR')
+                  }
+                  className={`text-xs font-bold px-2.5 py-0.5 rounded-md transition-all flex items-center gap-1.5 cursor-pointer border ${
                     selectedStatusFilter === 'ORANG_LUAR'
-                      ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                      ? 'bg-amber-500 text-white border-amber-600'
                       : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
                   }`}
-                  title="Klik untuk memfilter khusus akun orang luar"
                 >
-                  <Globe className="w-3 h-3 text-amber-700" />
-                  <span>{result.unrecognizedLikers?.length || 0} Orang Luar (Non-DB)</span>
+                  <Globe className="w-3 h-3" />
+                  <span>{result.unrecognizedLikers?.length || 0} Tidak Tercantum di Data</span>
                 </button>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Pemeriksaan detail akun Instagram karyawan terdaftar dan tracking akun publik/orang luar yang me-like postingan
+                Daftar staf tetap {result.totalKaryawan} karyawan, ditambah akun yang ikut like tapi belum/tidak tercantum di database.
               </p>
             </div>
 
             {/* Filters & Position Toggle */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Search */}
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Cari nama / username..."
+                  placeholder={`Cari nama / akun ${isFb ? 'FB' : 'IG'}...`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800 w-36 sm:w-44"
                 />
               </div>
 
-              {/* Divisi Filter */}
               <select
                 value={selectedDivFilter}
                 onChange={(e) => setSelectedDivFilter(e.target.value)}
@@ -1395,38 +2163,36 @@ export function RekapGenerator({
                 ))}
               </select>
 
-              {/* Status Filter */}
               <select
                 value={selectedStatusFilter}
                 onChange={(e) => setSelectedStatusFilter(e.target.value as any)}
                 className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-slate-700 font-medium cursor-pointer"
               >
-                <option value="ALL">Semua Status (Karyawan + Luar)</option>
+                <option value="ALL">Semua Status (Karyawan + Non-Data)</option>
                 <option value="DENDA">❌ Kena Denda ({result.totalDenda})</option>
                 <option value="LIKED">✅ Sudah Like ({result.totalSudahLike})</option>
-                <option value="ORANG_LUAR">🌐 Orang Luar / Non-DB ({result.unrecognizedLikers?.length || 0})</option>
+                <option value="ORANG_LUAR">
+                  🌐 Tidak Tercantum di Data ({result.unrecognizedLikers?.length || 0})
+                </option>
                 <option value="EXEMPT">🏖️ Cuti / Off ({result.totalExempt})</option>
               </select>
 
-              {/* Position Switcher for Orang Luar */}
               <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600">
                 <button
                   type="button"
                   onClick={() => setExternalLikersViewMode('top')}
                   className={`px-2 py-1 rounded transition-colors cursor-pointer ${
-                    externalLikersViewMode === 'top' ? 'bg-white text-indigo-600 shadow-xs' : 'hover:text-slate-900'
+                    externalLikersViewMode === 'top' ? 'bg-white text-indigo-600 shadow-2xs' : 'hover:text-slate-900'
                   }`}
-                  title="Tampilkan panel orang luar di paling atas"
                 >
-                  Posisi: Atas
+                  Non-Data: Atas
                 </button>
                 <button
                   type="button"
                   onClick={() => setExternalLikersViewMode('bottom')}
                   className={`px-2 py-1 rounded transition-colors cursor-pointer ${
-                    externalLikersViewMode === 'bottom' ? 'bg-white text-indigo-600 shadow-xs' : 'hover:text-slate-900'
+                    externalLikersViewMode === 'bottom' ? 'bg-white text-indigo-600 shadow-2xs' : 'hover:text-slate-900'
                   }`}
-                  title="Tampilkan panel orang luar di paling bawah"
                 >
                   Bawah
                 </button>
@@ -1434,30 +2200,29 @@ export function RekapGenerator({
             </div>
           </div>
 
-          {/* DEDICATED ORANG LUAR / NON-DATABASE CARD (TOP POSITION) */}
+          {/* UNRECOGNIZED / UNLISTED LIKERS PANEL ("akun yang like tapi tidak tercantum di data") */}
           {(externalLikersViewMode === 'top' || selectedStatusFilter === 'ORANG_LUAR') && (
             <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-amber-200/70">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold shrink-0">
                     <Globe className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
-                        Daftar Akun Orang Luar (Non-Database)
+                        Akun yang Like Tapi Tidak Tercantum di Data ({isFb ? 'Facebook' : 'Instagram'})
                       </h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
                         {filteredExternalLikers.length} dari {result.unrecognizedLikers?.length || 0} Akun
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-600">
-                      Username yang me-like postingan ini tapi tidak terdaftar di database karyawan (audiens / follower organik).
+                      Bisa berupa pelanggan/orang luar ATAU akun baru karyawan yang namanya belum tercatat. Klik ikon <strong>🔗 Hubungkan</strong> jika akun tersebut milik staf yang belum tercatat.
                     </p>
                   </div>
                 </div>
 
-                {/* Quick Actions */}
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
@@ -1466,65 +2231,142 @@ export function RekapGenerator({
                     className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                       copiedExternalLikers
                         ? 'bg-emerald-600 text-white'
-                        : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
+                        : 'bg-amber-600 hover:bg-amber-700 text-white'
                     }`}
                   >
                     {copiedExternalLikers ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedExternalLikers ? 'Semua Tersalin!' : `Salin Semua (${result.unrecognizedLikers?.length || 0})`}</span>
+                    <span>
+                      {copiedExternalLikers
+                        ? 'Tersalin!'
+                        : `Salin Semua (${result.unrecognizedLikers?.length || 0})`}
+                    </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setIsExternalLikersExpanded(!isExternalLikersExpanded)}
-                    className="p-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-xs font-semibold cursor-pointer"
-                    title={isExternalLikersExpanded ? 'Sembunyikan chip' : 'Tampilkan chip'}
+                    className="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-xs font-semibold cursor-pointer"
                   >
-                    {isExternalLikersExpanded ? 'Tutup' : 'Buka'}
+                    {isExternalLikersExpanded ? 'Sembunyikan' : 'Tampilkan'}
                   </button>
                 </div>
               </div>
 
-              {/* Chips Grid */}
+              {/* Inline Assign / Link Bar when user clicks "Hubungkan ke Karyawan" on any unlisted liker */}
+              {linkingLikerRaw && (
+                <div className="p-3 bg-white border border-indigo-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
+                  <div className="text-xs">
+                    <span className="text-slate-500">Hubungkan akun </span>
+                    <strong className="text-indigo-700">{formatLikerDisplay(linkingLikerRaw).label}</strong>
+                    <span className="text-slate-500"> ke karyawan terdaftar (jumlah karyawan tidak bertambah):</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={linkingEmployeeId}
+                      onChange={(e) => setLinkingEmployeeId(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800"
+                    >
+                      <option value="">-- Pilih Karyawan --</option>
+                      {unlikedEmployeesForLinking.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.nama} ({emp.divisi})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!linkingEmployeeId}
+                      onClick={() => handleAssignUnlistedToEmployee(linkingLikerRaw, linkingEmployeeId, false)}
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold cursor-pointer"
+                    >
+                      Tandai Like Saja
+                    </button>
+                    {setEmployees && (
+                      <button
+                        type="button"
+                        disabled={!linkingEmployeeId}
+                        onClick={() => handleAssignUnlistedToEmployee(linkingLikerRaw, linkingEmployeeId, true)}
+                        className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold cursor-pointer"
+                      >
+                        Simpan Permanen ke {isFb ? 'FB' : 'IG'} Staf
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLinkingLikerRaw(null);
+                        setLinkingEmployeeId('');
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {isExternalLikersExpanded && (
                 <div>
                   {filteredExternalLikers.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1 custom-scrollbar">
-                      {filteredExternalLikers.map((username) => (
-                        <div
-                          key={`chip-${username}`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-amber-200 hover:border-amber-400 text-slate-800 text-xs shadow-2xs group transition-all"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                          <span className="font-mono font-medium text-slate-800">@{username}</span>
-                          
-                          <button
-                            type="button"
-                            onClick={() => handleCopySingleUser(username)}
-                            className="text-slate-400 hover:text-indigo-600 p-0.5 rounded cursor-pointer transition-colors"
-                            title="Salin username"
+                    <div className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto p-1 custom-scrollbar">
+                      {filteredExternalLikers.map((rawUser) => {
+                        const info = formatLikerDisplay(rawUser);
+                        return (
+                          <div
+                            key={`chip-${rawUser}`}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-amber-200 hover:border-amber-400 text-slate-800 text-xs transition-all"
                           >
-                            {copiedSingleUser === username ? (
-                              <Check className="w-3 h-3 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            <span className="font-medium text-slate-900">{info.label}</span>
+                            {info.slugBadge && (
+                              <span className="text-[10px] font-mono text-slate-400">[{info.slugBadge}]</span>
                             )}
-                          </button>
 
-                          <a
-                            href={`https://www.instagram.com/${username}/`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-slate-400 hover:text-indigo-600 p-0.5 rounded transition-colors"
-                            title="Buka profil Instagram"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLinkingLikerRaw(rawUser);
+                                if (!linkingEmployeeId && unlikedEmployeesForLinking[0]) {
+                                  setLinkingEmployeeId(unlikedEmployeesForLinking[0].id);
+                                }
+                              }}
+                              className="text-indigo-600 hover:text-indigo-800 p-0.5 rounded cursor-pointer"
+                              title="Hubungkan akun ini ke karyawan terdaftar"
+                            >
+                              <Link2 className="w-3 h-3" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleCopySingleUser(rawUser)}
+                              className="text-slate-400 hover:text-indigo-600 p-0.5 rounded cursor-pointer"
+                              title="Salin nama/username"
+                            >
+                              {copiedSingleUser === rawUser ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+
+                            <a
+                              href={info.profileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-slate-400 hover:text-indigo-600 p-0.5 rounded"
+                              title={`Cek profil di ${isFb ? 'Facebook' : 'Instagram'}`}
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-xs text-amber-800/80 italic py-2">
-                      {searchQuery ? 'Tidak ada akun orang luar yang cocok dengan pencarian.' : 'Tidak ada akun orang luar terdeteksi.'}
+                      {searchQuery
+                        ? 'Tidak ada akun non-database yang cocok dengan pencarian.'
+                        : 'Tidak ada akun luar / non-database terdeteksi.'}
                     </p>
                   )}
                 </div>
@@ -1532,91 +2374,90 @@ export function RekapGenerator({
             </div>
           )}
 
-          {/* Table */}
+          {/* Breakdown Table */}
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="text-slate-400 border-b border-slate-100 uppercase text-[10px] tracking-wider">
                   <th className="py-2.5 px-3 font-semibold">Divisi</th>
                   <th className="py-2.5 px-3 font-semibold">Nama Karyawan / Info Akun</th>
-                  <th className="py-2.5 px-3 font-semibold">Username 1</th>
-                  <th className="py-2.5 px-3 font-semibold">Username 2</th>
+                  <th className="py-2.5 px-3 font-semibold">
+                    {isFb ? 'Akun FB Utama' : 'Username IG 1'}
+                  </th>
+                  <th className="py-2.5 px-3 font-semibold">
+                    {isFb ? 'Akun FB 2 / IG Ref' : 'Username IG 2 / FB Ref'}
+                  </th>
                   <th className="py-2.5 px-3 font-semibold text-center">Status Kerja</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">Hasil Like</th>
-                  <th className="py-2.5 px-3 font-semibold text-right">Tindakan</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">Hasil Like ({isFb ? 'FB' : 'IG'})</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Keterangan Cocok</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {/* 1. ORANG LUAR ROWS (WHEN VIEW MODE IS 'top' OR FILTER IS 'ORANG_LUAR' OR 'ALL') */}
-                {(selectedStatusFilter === 'ORANG_LUAR' || (selectedStatusFilter === 'ALL' && externalLikersViewMode === 'top')) && (
-                  selectedDivFilter === 'ALL' && filteredExternalLikers.map((username) => (
-                    <tr
-                      key={`table-ext-top-${username}`}
-                      className="bg-amber-50/50 hover:bg-amber-100/60 transition-colors border-l-4 border-l-amber-500"
-                    >
-                      <td className="py-2.5 px-3 font-bold">
-                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300 inline-flex items-center gap-1">
-                          <Globe className="w-2.5 h-2.5 text-amber-700" />
-                          <span>NON-KARYAWAN</span>
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900">
-                        <div className="flex items-center gap-1.5">
-                          <span>Akun Publik / Orang Luar</span>
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200 text-amber-900">
-                            Non-DB
+                {/* 1. UNLISTED ACCOUNTS AT TOP */}
+                {(selectedStatusFilter === 'ORANG_LUAR' ||
+                  (selectedStatusFilter === 'ALL' && externalLikersViewMode === 'top')) &&
+                  selectedDivFilter === 'ALL' &&
+                  filteredExternalLikers.map((rawUser) => {
+                    const info = formatLikerDisplay(rawUser);
+                    return (
+                      <tr
+                        key={`table-ext-top-${rawUser}`}
+                        className="bg-amber-50/40 hover:bg-amber-100/50 transition-colors"
+                      >
+                        <td className="py-2.5 px-3 font-bold">
+                          <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300 inline-flex items-center gap-1">
+                            <Globe className="w-2.5 h-2.5 text-amber-700" />
+                            <span>TIDAK TERCANTUM</span>
                           </span>
-                        </div>
-                        <span className="block text-[10px] font-normal text-amber-800">
-                          Bukan staf terdaftar di database
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">
-                        @{username}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-400">
-                        -
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                          Orang Luar
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
-                          Sudah Like (Publik)
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleCopySingleUser(username)}
-                            className="text-[10px] font-mono text-slate-600 hover:text-indigo-600 bg-white px-2 py-0.5 rounded border border-slate-200 cursor-pointer flex items-center gap-1"
-                            title="Salin username"
-                          >
-                            {copiedSingleUser === username ? (
-                              <Check className="w-2.5 h-2.5 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-2.5 h-2.5" />
-                            )}
-                            <span>{copiedSingleUser === username ? 'Tersalin' : 'Salin'}</span>
-                          </button>
-                          <a
-                            href={`https://www.instagram.com/${username}/`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] font-mono text-indigo-600 hover:underline bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-flex items-center gap-1"
-                          >
-                            <span>Buka IG</span>
-                            <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900">
+                          <span>Akun Luar / Belum Tercatat di Data</span>
+                          <span className="block text-[10px] font-normal text-amber-800">
+                            Ikut like di {isFb ? 'Facebook' : 'Instagram'} namun tidak terdaftar di database staf
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">{info.label}</td>
+                        <td className="py-2.5 px-3 font-mono text-slate-400">{info.slugBadge || '-'}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            Non-Data
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
+                            Sudah Like
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLinkingLikerRaw(rawUser);
+                                if (!linkingEmployeeId && unlikedEmployeesForLinking[0]) {
+                                  setLinkingEmployeeId(unlikedEmployeesForLinking[0].id);
+                                }
+                              }}
+                              className="text-[10px] font-bold text-indigo-700 hover:bg-indigo-100 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <Link2 className="w-2.5 h-2.5" />
+                              <span>Hubungkan</span>
+                            </button>
+                            <a
+                              href={info.profileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] font-semibold text-slate-600 hover:text-indigo-700 bg-white px-2 py-0.5 rounded border border-slate-200 inline-flex items-center gap-1"
+                            >
+                              <span>Cek</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
 
                 {/* 2. REGULAR EMPLOYEE ROWS */}
                 {filteredDetailResults.map((item) => (
@@ -1639,11 +2480,37 @@ export function RekapGenerator({
                         </span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-slate-600">
-                      @{item.employee.username1}
+                    <td className="py-2.5 px-3 font-mono text-slate-700">
+                      {isFb ? (
+                        item.employee.fbUsername1 ? (
+                          <span className="font-sans font-semibold text-[#1877F2]">
+                            {item.employee.fbUsername1}
+                          </span>
+                        ) : (
+                          <span className="font-sans text-[11px] text-amber-600 italic">Belum diisi</span>
+                        )
+                      ) : item.employee.username1 ? (
+                        `@${item.employee.username1}`
+                      ) : (
+                        '-'
+                      )}
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-slate-500">
-                      {item.employee.username2 ? `@${item.employee.username2}` : '-'}
+                    <td className="py-2.5 px-3 text-slate-500">
+                      {isFb ? (
+                        item.employee.fbUsername2 ? (
+                          <span className="font-semibold text-slate-700">{item.employee.fbUsername2}</span>
+                        ) : (
+                          <span className="font-mono text-[10px] text-slate-400">
+                            IG: @{item.employee.username1}
+                          </span>
+                        )
+                      ) : item.employee.username2 ? (
+                        <span className="font-mono">@{item.employee.username2}</span>
+                      ) : item.employee.fbUsername1 ? (
+                        <span className="text-[10px] text-slate-400">FB: {item.employee.fbUsername1}</span>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-center">
                       <span
@@ -1675,310 +2542,221 @@ export function RekapGenerator({
                     </td>
                     <td className="py-2.5 px-3 text-right">
                       {item.matchedUsername && (
-                        <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                          matched: @{item.matchedUsername}
-                        </span>
+                        <div className="inline-flex items-center gap-1.5 justify-end">
+                          <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                            {isFb ? item.matchedUsername : `@${item.matchedUsername}`}
+                          </span>
+                          {item.matchType === 'manual_confirmed' && (
+                            <button
+                              type="button"
+                              onClick={() => handleUndoManualConfirm(item.employee.id)}
+                              className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                              title="Batalkan konfirmasi manual"
+                            >
+                              Batal
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
                 ))}
 
-                {/* 3. ORANG LUAR ROWS (WHEN VIEW MODE IS 'bottom' AND FILTER IS 'ALL') */}
-                {selectedStatusFilter === 'ALL' && externalLikersViewMode === 'bottom' && selectedDivFilter === 'ALL' && (
-                  filteredExternalLikers.map((username) => (
-                    <tr
-                      key={`table-ext-bottom-${username}`}
-                      className="bg-amber-50/50 hover:bg-amber-100/60 transition-colors border-l-4 border-l-amber-500"
-                    >
-                      <td className="py-2.5 px-3 font-bold">
-                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300 inline-flex items-center gap-1">
-                          <Globe className="w-2.5 h-2.5 text-amber-700" />
-                          <span>NON-KARYAWAN</span>
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900">
-                        <div className="flex items-center gap-1.5">
-                          <span>Akun Publik / Orang Luar</span>
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200 text-amber-900">
-                            Non-DB
+                {/* 3. UNLISTED ACCOUNTS AT BOTTOM */}
+                {selectedStatusFilter === 'ALL' &&
+                  externalLikersViewMode === 'bottom' &&
+                  selectedDivFilter === 'ALL' &&
+                  filteredExternalLikers.map((rawUser) => {
+                    const info = formatLikerDisplay(rawUser);
+                    return (
+                      <tr
+                        key={`table-ext-bottom-${rawUser}`}
+                        className="bg-amber-50/40 hover:bg-amber-100/50 transition-colors"
+                      >
+                        <td className="py-2.5 px-3 font-bold">
+                          <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300 inline-flex items-center gap-1">
+                            <Globe className="w-2.5 h-2.5 text-amber-700" />
+                            <span>TIDAK TERCANTUM</span>
                           </span>
-                        </div>
-                        <span className="block text-[10px] font-normal text-amber-800">
-                          Bukan staf terdaftar di database
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">
-                        @{username}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-400">
-                        -
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                          Orang Luar
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
-                          Sudah Like (Publik)
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900">
+                          <span>Akun Luar / Belum Tercatat di Data</span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">{info.label}</td>
+                        <td className="py-2.5 px-3 font-mono text-slate-400">{info.slugBadge || '-'}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            Non-Data
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
+                            Sudah Like
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
                           <button
                             type="button"
-                            onClick={() => handleCopySingleUser(username)}
-                            className="text-[10px] font-mono text-slate-600 hover:text-indigo-600 bg-white px-2 py-0.5 rounded border border-slate-200 cursor-pointer flex items-center gap-1"
-                            title="Salin username"
+                            onClick={() => {
+                              setLinkingLikerRaw(rawUser);
+                              setExternalLikersViewMode('top');
+                            }}
+                            className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 cursor-pointer"
                           >
-                            {copiedSingleUser === username ? (
-                              <Check className="w-2.5 h-2.5 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-2.5 h-2.5" />
-                            )}
-                            <span>{copiedSingleUser === username ? 'Tersalin' : 'Salin'}</span>
+                            Hubungkan
                           </button>
-                          <a
-                            href={`https://www.instagram.com/${username}/`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] font-mono text-indigo-600 hover:underline bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-flex items-center gap-1"
-                          >
-                            <span>Buka IG</span>
-                            <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                {filteredDetailResults.length === 0 &&
+                  (selectedStatusFilter !== 'ORANG_LUAR' || filteredExternalLikers.length === 0) && (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        Tidak ada data yang cocok dengan filter.
                       </td>
                     </tr>
-                  ))
-                )}
-
-                {/* Empty State */}
-                {filteredDetailResults.length === 0 && (selectedStatusFilter !== 'ORANG_LUAR' || filteredExternalLikers.length === 0) && (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
-                      Tidak ada data yang cocok dengan filter.
-                    </td>
-                  </tr>
-                )}
+                  )}
               </tbody>
             </table>
           </div>
-
-          {/* DEDICATED ORANG LUAR / NON-DATABASE CARD (BOTTOM POSITION) */}
-          {externalLikersViewMode === 'bottom' && selectedStatusFilter !== 'ORANG_LUAR' && (
-            <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3 mt-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-amber-200/70">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
-                    <Globe className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
-                        Daftar Akun Orang Luar (Non-Database)
-                      </h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
-                        {filteredExternalLikers.length} dari {result.unrecognizedLikers?.length || 0} Akun
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-600">
-                      Username yang me-like postingan ini tapi tidak terdaftar di database karyawan (audiens / follower organik).
-                    </p>
-                  </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleCopyExternalLikers('newline')}
-                    disabled={!result.unrecognizedLikers?.length}
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                      copiedExternalLikers
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
-                    }`}
-                  >
-                    {copiedExternalLikers ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedExternalLikers ? 'Semua Tersalin!' : `Salin Semua (${result.unrecognizedLikers?.length || 0})`}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsExternalLikersExpanded(!isExternalLikersExpanded)}
-                    className="p-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-xs font-semibold cursor-pointer"
-                    title={isExternalLikersExpanded ? 'Sembunyikan chip' : 'Tampilkan chip'}
-                  >
-                    {isExternalLikersExpanded ? 'Tutup' : 'Buka'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Chips Grid */}
-              {isExternalLikersExpanded && (
-                <div>
-                  {filteredExternalLikers.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1 custom-scrollbar">
-                      {filteredExternalLikers.map((username) => (
-                        <div
-                          key={`chip-bottom-${username}`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-amber-200 hover:border-amber-400 text-slate-800 text-xs shadow-2xs group transition-all"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                          <span className="font-mono font-medium text-slate-800">@{username}</span>
-                          
-                          <button
-                            type="button"
-                            onClick={() => handleCopySingleUser(username)}
-                            className="text-slate-400 hover:text-indigo-600 p-0.5 rounded cursor-pointer transition-colors"
-                            title="Salin username"
-                          >
-                            {copiedSingleUser === username ? (
-                              <Check className="w-3 h-3 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
-
-                          <a
-                            href={`https://www.instagram.com/${username}/`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-slate-400 hover:text-indigo-600 p-0.5 rounded transition-colors"
-                            title="Buka profil Instagram"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-amber-800/80 italic py-2">
-                      {searchQuery ? 'Tidak ada akun orang luar yang cocok dengan pencarian.' : 'Tidak ada akun orang luar terdeteksi.'}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 
       {/* ========================================================= */}
-      {/* QUICK CONSOLE GUIDE & TROUBLESHOOTING MODAL              */}
+      {/* QUICK CONSOLE GUIDE MODAL (SUPPORTS BOTH IG & FB)          */}
       {/* ========================================================= */}
       {isQuickGuideOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 gap-3 flex-wrap">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold">
+                <div
+                  className={`w-8 h-8 rounded-lg text-white flex items-center justify-center font-bold ${
+                    isFb ? 'bg-[#1877F2]' : 'bg-indigo-600'
+                  }`}
+                >
                   <Terminal className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">
-                    Cara Ambil Likers Instagram (Hanya 3 Detik)
+                    Cara Ambil Likers {isFb ? 'Facebook' : 'Instagram'} Otomatis
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Solusi praktis mengekstrak ratusan username likers tanpa ketik manual
+                    Pilih platform di kanan untuk menyalin script yang sesuai
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setIsQuickGuideOpen(false)}
-                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+              <div className="flex items-center gap-2">
+                <div className="inline-flex p-0.5 rounded-lg bg-slate-200/80 text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchPlatform('instagram')}
+                    className={`px-2.5 py-1 rounded-md cursor-pointer ${
+                      !isFb ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-600'
+                    }`}
+                  >
+                    IG
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchPlatform('facebook')}
+                    className={`px-2.5 py-1 rounded-md cursor-pointer ${
+                      isFb ? 'bg-[#1877F2] text-white shadow-2xs' : 'text-slate-600'
+                    }`}
+                  >
+                    FB
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsQuickGuideOpen(false)}
+                  className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-700 custom-scrollbar">
-              
-              {/* Why F12 explanation */}
-              <div className="p-3.5 bg-amber-50 border border-amber-200/80 rounded-xl text-amber-950 space-y-1">
-                <p className="font-bold flex items-center gap-1.5 text-amber-900">
-                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Mengapa tidak bisa hanya memasukkan link postingan saja?</span>
-                </p>
-                <p className="text-[11px] text-amber-900 leading-relaxed">
-                  Instagram mengunci data orang yang me-like di balik akun login browser untuk mencegah scraping liar. Karena itu, cara paling cepat dan resmi adalah menyalin daftar likers langsung dari browser Anda menggunakan script 1-klik di bawah ini.
-                </p>
-              </div>
-
-              {/* Step by Step Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs mb-2">
+                  <div
+                    className={`w-6 h-6 rounded-full text-white flex items-center justify-center font-bold text-xs mb-2 ${
+                      isFb ? 'bg-[#1877F2]' : 'bg-indigo-600'
+                    }`}
+                  >
                     1
                   </div>
-                  <strong className="block text-slate-900">Buka Modal Likes IG</strong>
+                  <strong className="block text-slate-900">
+                    {isFb ? 'Buka Dialog Tanggapan FB' : 'Buka Modal Likes IG'}
+                  </strong>
                   <p className="text-[11px] text-slate-600">
-                    Buka postingan di Instagram Web, lalu klik tulisan jumlah <strong>"Likes/Suka"</strong> agar popup likers terbuka.
+                    {isFb
+                      ? 'Buka postingan di Facebook Web, lalu klik ikon jumlah 👍❤️ Tanggapan di bawah postingan hingga daftar nama muncul.'
+                      : 'Buka postingan di Instagram Web, lalu klik tulisan jumlah "Likes/Suka" agar popup likers terbuka.'}
                   </p>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs mb-2">
+                  <div
+                    className={`w-6 h-6 rounded-full text-white flex items-center justify-center font-bold text-xs mb-2 ${
+                      isFb ? 'bg-[#1877F2]' : 'bg-indigo-600'
+                    }`}
+                  >
                     2
                   </div>
-                  <strong className="block text-slate-900">Tekan F12 &gt; Console</strong>
+                  <strong className="block text-slate-900">Bookmarklet / F12 Console</strong>
                   <p className="text-[11px] text-slate-600">
-                    Tekan <strong>F12</strong> pada keyboard (atau Ctrl+Shift+I), lalu klik tab menu <strong>Console</strong>.
+                    Klik Bookmarklet {isFb ? 'FB' : 'IG'} di bar browser ATAU tekan <strong>F12 &gt; Console</strong>.
                   </p>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs mb-2">
+                  <div
+                    className={`w-6 h-6 rounded-full text-white flex items-center justify-center font-bold text-xs mb-2 ${
+                      isFb ? 'bg-[#1877F2]' : 'bg-indigo-600'
+                    }`}
+                  >
                     3
                   </div>
-                  <strong className="block text-slate-900">Paste Script & Enter</strong>
+                  <strong className="block text-slate-900">Otomatis Scroll &amp; Salin</strong>
                   <p className="text-[11px] text-slate-600">
-                    Paste script di bawah lalu tekan <strong>Enter</strong>. Semua username langsung otomatis tersalin ke Clipboard!
+                    Script otomatis men-scroll daftar sampai habis dan menyalinnya ke Clipboard. Kembali ke sini lalu tekan <strong>Ctrl+V</strong>!
                   </p>
                 </div>
               </div>
 
-              {/* Script Box */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                    Script Console 1-Klik:
+                    Script Console {isFb ? 'Facebook' : 'Instagram'} (F12):
                   </span>
                   <button
+                    type="button"
                     onClick={handleCopyScript}
                     className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all ${
                       copiedScript
                         ? 'bg-emerald-600 text-white'
-                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                        : isFb
+                        ? 'bg-[#1877F2] hover:bg-blue-700 text-white'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                     }`}
                   >
-                    {copiedScript ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Script Tersalin ke Clipboard!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Salin Script Console</span>
-                      </>
-                    )}
+                    {copiedScript ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedScript ? 'Script Tersalin!' : `Salin Script ${isFb ? 'FB' : 'IG'}`}</span>
                   </button>
                 </div>
 
                 <div className="bg-slate-950 text-emerald-400 p-3.5 rounded-xl font-mono text-[11px] max-h-40 overflow-y-auto custom-scrollbar border border-slate-800 select-all">
-                  <pre className="whitespace-pre">{INSTAGRAM_CONSOLE_SCRIPT}</pre>
+                  <pre className="whitespace-pre">{activeConsoleScript}</pre>
                 </div>
               </div>
-
             </div>
 
-            {/* Modal Footer */}
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
               <button
                 type="button"
@@ -1989,18 +2767,17 @@ export function RekapGenerator({
                 className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4 text-amber-500" />
-                <span>Atau coba pakai Demo Data KTSN sekarang &rarr;</span>
+                <span>Coba pakai Demo Data {isFb ? 'Facebook' : 'Instagram'} sekarang &rarr;</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsQuickGuideOpen(false)}
-                className="w-full sm:w-auto px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors"
+                className="w-full sm:w-auto px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl cursor-pointer"
               >
                 Mengerti &amp; Tutup
               </button>
             </div>
-
           </div>
         </div>
       )}
@@ -2010,203 +2787,138 @@ export function RekapGenerator({
       {/* ========================================================= */}
       {isNetlifyGuideOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
-            
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-teal-50 to-indigo-50/50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-teal-50/60">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-md shadow-teal-200">
+                <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center">
                   <Globe className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                    <span>Panduan Deploy ke Netlify (Gratis &amp; Cepat)</span>
-                    <span className="px-2 py-0.5 rounded-md bg-teal-100 text-teal-800 text-[10px] font-bold">
-                      Siap Pakai
-                    </span>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Panduan Deploy ke Netlify (Gratis &amp; Cepat)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Aplikasi ini 100% kompatibel dengan Netlify. Konfigurasi <code>netlify.toml</code> &amp; <code>_redirects</code> sudah terpasang.
+                    Konfigurasi <code>netlify.toml</code> &amp; <code>_redirects</code> sudah terpasang.
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsNetlifyGuideOpen(false)}
-                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-700 custom-scrollbar">
-              
-              {/* Ready notice */}
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-950 flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-bold text-emerald-900 text-xs">
-                    File Konfigurasi Netlify Sudah Otomatis Tersedia!
-                  </p>
-                  <p className="text-[11px] text-emerald-800 leading-relaxed">
-                    Kami sudah menambahkan file <b>netlify.toml</b> dan <b>public/_redirects</b> di repositori ini, sehingga routing SPA dan build React Vite akan berjalan mulus tanpa error 404 saat refresh halaman.
-                  </p>
-                </div>
+            <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-700 custom-scrollbar">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+                <h4 className="font-bold text-slate-900 text-sm">1. Deploy via GitHub / Netlify Drop</h4>
+                <ol className="list-decimal space-y-1.5 text-slate-700 text-xs pl-4">
+                  <li>Jalankan <code>npm run build</code> untuk menghasilkan folder <b>dist/</b>.</li>
+                  <li>Buka <b>app.netlify.com/drop</b> dan seret folder <b>dist</b>, atau hubungkan via GitHub.</li>
+                  <li>Seluruh data karyawan (IG &amp; FB) tersimpan aman di browser masing-masing perangkat.</li>
+                </ol>
               </div>
-
-              {/* Method 1: Connect via GitHub */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-xs">1</span>
-                  <h4 className="font-bold text-slate-900 text-sm">Metode 1: Hubungkan ke GitHub (Rekomendasi Otomatis)</h4>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 pl-8">
-                  <ol className="list-decimal space-y-2 text-slate-700 text-xs pl-2">
-                    <li>
-                      Buka <b><a href="https://app.netlify.com" target="_blank" rel="noreferrer" className="text-teal-700 underline font-bold">app.netlify.com</a></b> dan login / buat akun gratis.
-                    </li>
-                    <li>
-                      Klik tombol <b>"Add new site" &gt; "Import an existing project"</b>.
-                    </li>
-                    <li>
-                      Pilih <b>GitHub</b>, lalu pilih repositori proyek ini.
-                    </li>
-                    <li>
-                      Netlify akan otomatis mendeteksi pengaturan build:
-                      <div className="mt-2 bg-slate-900 text-emerald-400 p-3 rounded-lg font-mono text-[11px] space-y-1">
-                        <div><span className="text-slate-400">Build command:</span> <span className="text-white font-bold">npm run build</span></div>
-                        <div><span className="text-slate-400">Publish directory:</span> <span className="text-teal-300 font-bold">dist</span></div>
-                        <div><span className="text-slate-400">Node version:</span> <span className="text-slate-300">20.x / 18.x</span></div>
-                      </div>
-                    </li>
-                    <li>
-                      Klik tombol <b>"Deploy Site"</b>. Dalam hitungan 1-2 menit web app Anda langsung LIVE dengan domain <code>https://nama-app.netlify.app</code>!
-                    </li>
-                  </ol>
-                </div>
-              </div>
-
-              {/* Method 2: Netlify Drop */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs">2</span>
-                  <h4 className="font-bold text-slate-900 text-sm">Metode 2: Netlify Drop (Drag &amp; Drop Folder Tanpa Git)</h4>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 pl-8">
-                  <ol className="list-decimal space-y-1.5 text-slate-700 text-xs pl-2">
-                    <li>
-                      Jalankan perintah <code>npm run build</code> di komputer Anda. Ini akan menghasilkan folder <b>dist/</b>.
-                    </li>
-                    <li>
-                      Buka <b><a href="https://app.netlify.com/drop" target="_blank" rel="noreferrer" className="text-teal-700 underline font-bold">app.netlify.com/drop</a></b>.
-                    </li>
-                    <li>
-                      Tarik (drag &amp; drop) folder <b>dist</b> ke halaman browser tersebut.
-                    </li>
-                    <li>
-                      Situs langsung online seketika tanpa perlu konfigurasi server apapun!
-                    </li>
-                  </ol>
-                </div>
-              </div>
-
-              {/* FAQ / Clarification */}
-              <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-xl text-indigo-950 space-y-1.5">
-                <p className="font-bold text-xs text-indigo-900 flex items-center gap-1.5">
-                  <Info className="w-4 h-4 text-indigo-600" />
-                  <span>Apakah Tanggal &amp; Database Karyawan Perlu Diatur Ulang Tiap Hari?</span>
-                </p>
-                <p className="text-[11px] text-indigo-900 leading-relaxed">
-                  <b>Tidak perlu!</b> Tanggal di aplikasi ini berjalan <b>otomatis setiap hari</b> menggunakan tanggal real-time perangkat. Database karyawan juga tersimpan aman di browser (LocalStorage) atau bisa langsung diimpor dari Google Sheets via tombol <i>"Kelola Karyawan &gt; Import Google Sheets"</i>.
-                </p>
-              </div>
-
             </div>
 
-            {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">
-                Butuh deploy ke Google Apps Script juga? Ada di tab Panduan Deployment.
-              </span>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
               <button
                 type="button"
                 onClick={() => setIsNetlifyGuideOpen(false)}
-                className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors shadow-sm"
+                className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl cursor-pointer"
               >
                 Tutup Panduan
               </button>
             </div>
-
           </div>
         </div>
       )}
 
       {/* ========================================================= */}
-      {/* EXTENSION & BOOKMARKLET QUICK MODAL                      */}
+      {/* EXTENSION & BOOKMARKLET QUICK MODAL (IG + FB SWITCHABLE)   */}
       {/* ========================================================= */}
       {isExtensionModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
-            
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-indigo-50/50">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-200">
-                  <Chrome className="w-5 h-5" />
+                <div
+                  className={`w-10 h-10 rounded-xl text-white flex items-center justify-center ${
+                    isFb ? 'bg-[#1877F2]' : 'bg-amber-500'
+                  }`}
+                >
+                  {isFb ? <Facebook className="w-5 h-5" /> : <Chrome className="w-5 h-5" />}
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                    <span>Ekstensi &amp; Bookmarklet IG Liker Export</span>
-                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-bold">
-                      1-Klik
-                    </span>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                    Ekstraktor Otomatis {isFb ? 'Facebook' : 'Instagram'}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Ekstrak otomatis daftar orang yang like postingan Instagram tanpa repot ketik manual.
+                    Pilih saklar IG / FB untuk mengambil Bookmarklet atau unduh Ekstensi Universal v2.0
                   </p>
                 </div>
               </div>
+
               <button
+                type="button"
                 onClick={() => setIsExtensionModalOpen(false)}
-                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-700 custom-scrollbar">
-              
-              {/* Option 1: Bookmarklet (Fastest & No Install) */}
-              <div className="p-4 bg-gradient-to-br from-amber-50/90 to-indigo-50/70 border-2 border-amber-300/80 rounded-2xl space-y-3 shadow-xs">
+              {/* Switcher inside modal */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => handleSwitchPlatform('instagram')}
+                  className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                    !isFb ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Instagram className="w-3.5 h-3.5" />
+                  <span>Bookmarklet Instagram</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchPlatform('facebook')}
+                  className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                    isFb ? 'bg-[#1877F2] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Facebook className="w-3.5 h-3.5" />
+                  <span>Bookmarklet Facebook</span>
+                </button>
+              </div>
+
+              {/* Option 1: Platform-Specific Bookmarklet */}
+              <div
+                className={`p-4 rounded-2xl space-y-3 border ${
+                  isFb ? 'bg-blue-50/70 border-blue-300' : 'bg-amber-50/70 border-amber-300'
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                    <Bookmark className="w-4 h-4 text-amber-600" />
-                    <span>Pilihan 1: Bookmarklet (Super Cepat &amp; Tanpa Install)</span>
+                    <Bookmark className={`w-4 h-4 ${isFb ? 'text-[#1877F2]' : 'text-amber-600'}`} />
+                    <span>
+                      Pilihan 1: Bookmarklet Khusus {isFb ? 'Facebook' : 'Instagram'} (Tanpa Install)
+                    </span>
                   </span>
                   <button
                     type="button"
                     onClick={handleCopyBookmarklet}
-                    className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 bg-white/80 hover:bg-white px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1"
+                    className="text-[11px] font-bold text-indigo-700 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 cursor-pointer flex items-center gap-1"
                   >
-                    {copiedBookmarklet ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="text-emerald-700">Kode Tersalin!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Salin Kode</span>
-                      </>
-                    )}
+                    {copiedBookmarklet ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedBookmarklet ? 'Tersalin!' : 'Salin Kode'}</span>
                   </button>
                 </div>
 
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Seret tombol di bawah ke <b>Bookmarks Bar (Ctrl+Shift+B)</b>, atau <b>klik tombol</b> untuk langsung menyalin kodenya:
+                <p className="text-[11px] text-slate-600">
+                  Seret tombol di bawah ke <b>Bookmarks Bar (Ctrl+Shift+B)</b> browser Anda, lalu klik saat jendela daftar {isFb ? 'Tanggapan Facebook' : 'Likes Instagram'} sedang terbuka:
                 </p>
 
                 <div className="flex justify-center pt-1">
@@ -2217,41 +2929,41 @@ export function RekapGenerator({
                       e.preventDefault();
                       handleCopyBookmarklet();
                     }}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-500 via-indigo-600 to-indigo-700 hover:from-amber-600 hover:to-indigo-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-transform"
-                    title="Seret ke bar bookmark atau klik untuk salin kode"
+                    className={`w-full sm:w-auto px-5 py-2.5 text-white font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-2 cursor-grab active:cursor-grabbing ${
+                      isFb
+                        ? 'bg-[#1877F2] hover:bg-blue-700'
+                        : 'bg-gradient-to-r from-amber-500 via-indigo-600 to-indigo-700'
+                    }`}
                   >
-                    {copiedBookmarklet ? <Check className="w-4 h-4 text-emerald-300" /> : <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />}
-                    <span>{copiedBookmarklet ? '✅ Kode Bookmarklet Tersalin!' : '⚡ Ekstrak Likers IG (Seret ke Bar / Klik Salin)'}</span>
+                    <Zap className="w-4 h-4 text-amber-300" />
+                    <span>
+                      {copiedBookmarklet
+                        ? `✅ Kode Bookmarklet ${isFb ? 'FB' : 'IG'} Tersalin!`
+                        : isFb
+                        ? '⚡ Ekstrak Likers FB (Seret ke Bar / Klik Salin)'
+                        : '⚡ Ekstrak Likers IG (Seret ke Bar / Klik Salin)'}
+                    </span>
                   </a>
-                </div>
-
-                <div className="text-[10px] text-slate-500 bg-white/60 p-2.5 rounded-lg border border-slate-200/60 space-y-1.5">
-                  <div className="font-semibold text-slate-700">💡 Cara Pasang & Pakai di Instagram:</div>
-                  <ol className="list-decimal pl-4 space-y-1 text-slate-600">
-                    <li><b>Cara Cepat:</b> Seret tombol di atas ke Bookmarks Bar Chrome (tekan <code>Ctrl+Shift+B</code> jika bar belum muncul).</li>
-                    <li><b>Cara Manual (Jika seret terhalang):</b> Klik tombol di atas untuk salin kode &gt; Tekan <code>Ctrl+Shift+O</code> di Chrome &gt; Klik titik 3 kanan atas &gt; <i>Add new bookmark</i> &gt; Paste kode di kolom URL &gt; Simpan.</li>
-                    <li>Buka postingan IG di tab baru &gt; Klik jumlah <b>Suka / Likes</b> agar modal terbuka &gt; Klik bookmark <b>⚡ Ekstrak Likers IG</b>.</li>
-                  </ol>
                 </div>
               </div>
 
-              {/* Option 2: Full Chrome Extension */}
+              {/* Option 2: Universal IG + FB Chrome Extension v2.0 */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                     <Chrome className="w-4 h-4 text-indigo-600" />
-                    <span>Pilihan 2: Ekstensi Chrome (.ZIP Lengkap)</span>
+                    <span>Pilihan 2: Ekstensi Chrome v2.0 Universal (IG + FB Jadi Satu!)</span>
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Ekstensi resmi dengan ikon petir di pojok kanan atas browser Anda untuk auto-scroll dan ekstrak hingga ribuan likers.
+                  Cukup pasang 1 ekstensi saja untuk mengambil daftar like dari <strong>Instagram maupun Facebook</strong> (otomatis mendeteksi tab yang sedang dibuka + fitur Screenshot Panjang PNG).
                 </p>
                 <div className="pt-1 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={handleDownloadExtensionZip}
                     disabled={isDownloadingExtensionZip}
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer"
                   >
                     {isDownloadingExtensionZip ? (
                       <>
@@ -2261,79 +2973,35 @@ export function RekapGenerator({
                     ) : (
                       <>
                         <Download className="w-3.5 h-3.5" />
-                        <span>Unduh Ekstensi ZIP</span>
+                        <span>Unduh Ekstensi IG+FB v2.0 (.ZIP)</span>
                       </>
                     )}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsExtensionModalOpen(false);
-                      if (onOpenExtensionGuide) {
+                  {onOpenExtensionGuide && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsExtensionModalOpen(false);
                         onOpenExtensionGuide();
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
-                  >
-                    <span>Panduan Lengkap &rarr;</span>
-                  </button>
+                      }}
+                      className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg cursor-pointer"
+                    >
+                      Panduan Pasang Lengkap &rarr;
+                    </button>
+                  )}
                 </div>
               </div>
-
-              {/* Option 3: F12 Script */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                    <Terminal className="w-4 h-4 text-slate-700" />
-                    <span>Pilihan 3: Script Console F12 (Tanpa Pasang Apapun)</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyScript}
-                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
-                  >
-                    {copiedScript ? 'Script Tersalin!' : 'Salin Script'}
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Buka tab Instagram &gt; Tekan <b>F12 &gt; Console</b> &gt; Paste script &gt; Tekan Enter. Likers langsung tersalin dalam 2 detik.
-                </p>
-              </div>
-
             </div>
 
-            {/* Modal Footer */}
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={async () => {
-                  try {
-                    const text = await navigator.clipboard.readText();
-                    if (text && text.trim()) {
-                      setRawLikersText(text.trim());
-                      setIsExtensionModalOpen(false);
-                      setTimeout(() => {
-                        const effectiveDate = isAutoDate ? formatDateIndo(new Date()) : customDate;
-                        const res = processLikersData({
-                          urlPost: urlPost.trim(),
-                          rawLikersText: text.trim(),
-                          employees,
-                          customDate: effectiveDate,
-                          storeCode: storeCode || 'KTSN',
-                        });
-                        setResult(res);
-                      }, 100);
-                    } else {
-                      setIsExtensionModalOpen(false);
-                      alert('Clipboard masih kosong. Silakan salin likers dari IG terlebih dahulu.');
-                    }
-                  } catch {
-                    setIsExtensionModalOpen(false);
-                  }
+                  setIsExtensionModalOpen(false);
+                  await handlePasteFromClipboard();
                 }}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-                title="Tempel teks likers yang ada di clipboard dan proses rekap langsung"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
               >
                 <Clipboard className="w-4 h-4" />
                 <span>Tempel dari Clipboard &amp; Mulai Rekap</span>
@@ -2342,12 +3010,11 @@ export function RekapGenerator({
               <button
                 type="button"
                 onClick={() => setIsExtensionModalOpen(false)}
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors shadow-sm"
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl cursor-pointer"
               >
                 Tutup
               </button>
             </div>
-
           </div>
         </div>
       )}
@@ -2359,7 +3026,7 @@ export function RekapGenerator({
         result={result}
       />
 
-      {/* Long Screenshot Modal */}
+      {/* Long Screenshot Modal (Supports IG Likes & FB Reactions) */}
       <LongScreenshotModal
         isOpen={isScreenshotModalOpen}
         onClose={() => setIsScreenshotModalOpen(false)}
@@ -2367,8 +3034,8 @@ export function RekapGenerator({
         employees={employees}
         storeCode={storeCode || 'KTSN'}
         urlPost={urlPost}
+        platform={activePlatform}
       />
-
     </div>
   );
 }

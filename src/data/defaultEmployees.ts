@@ -10,6 +10,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     nama: 'YAYAK',
     username1: 'suryarahmad64',
     username2: '',
+    fbUsername1: 'Surya Rahmad',
     status: 'Bebas',
     keterangan: 'Bebas Denda / Umum',
   },
@@ -22,6 +23,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'BINTI',
     username1: 'bintiandini',
+    fbUsername1: 'Binti Andini',
     status: 'Normal',
   },
   {
@@ -29,6 +31,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'MEGA',
     username1: 'megawati.sun',
+    fbUsername1: 'Megawati Sun',
     status: 'Normal',
   },
   {
@@ -36,6 +39,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'MYTHA',
     username1: 'mythalusia',
+    fbUsername1: 'Mytha Lusia',
     status: 'Cuti',
     keterangan: 'Cuti Tahunan',
   },
@@ -44,6 +48,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'CHRISTIN',
     username1: 'christinn.df',
+    fbUsername1: 'Christin Df',
     status: 'Normal',
   },
   {
@@ -51,6 +56,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'TIARA',
     username1: 'tiaraindrianip',
+    fbUsername1: 'Tiara Indriani Putri',
     status: 'Normal',
   },
   {
@@ -58,6 +64,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'RANI',
     username1: 'fitria_ran',
+    fbUsername1: 'Fitria Rani',
     status: 'Normal',
   },
   {
@@ -65,6 +72,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'DESY',
     username1: 'desyaldita',
+    fbUsername1: 'Desy Aldita',
     status: 'Normal',
   },
   {
@@ -72,6 +80,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'SHINTA',
     username1: 'oktafianshinta',
+    fbUsername1: 'Shinta Oktafian',
     status: 'Normal',
   },
   {
@@ -79,6 +88,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'AYU',
     username1: 'ftr.aay',
+    fbUsername1: 'Fitri Ayu',
     status: 'Normal',
   },
   {
@@ -86,6 +96,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'AISTI',
     username1: 'aistialqur_',
+    fbUsername1: 'Aisti Alqur',
     status: 'Normal',
   },
   {
@@ -93,6 +104,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'ADMIN NGK',
     nama: 'ANGGITA',
     username1: 'anggita.restianad',
+    fbUsername1: 'Anggita Restiana',
     status: 'Normal',
   },
 
@@ -104,6 +116,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'WAHYU MS',
     username1: 'wahyusaputro2023',
+    fbUsername1: 'Wahyu Saputro',
     status: 'Normal',
   },
   {
@@ -111,6 +124,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'PUTRI FL',
     username1: 'putrirhayu_8',
+    fbUsername1: 'Putri Rahayu',
     status: 'Normal',
   },
   {
@@ -118,6 +132,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'TIO FL',
     username1: 'bagasbilly1',
+    fbUsername1: 'Tio Bagas Billy',
     status: 'Normal',
   },
   {
@@ -125,6 +140,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'GIFANI FL',
     username1: 'gifanii11',
+    fbUsername1: 'Gifani Pratama',
     status: 'Normal',
   },
   {
@@ -132,6 +148,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'MUSTAIN FL',
     username1: 'mstn_12',
+    fbUsername1: 'Ahmad Mustain',
     status: 'Normal',
   },
   {
@@ -139,6 +156,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'YOSEP FL',
     username1: 'diecast_motret',
+    fbUsername1: 'Yosep Kurniawan',
     status: 'Normal',
   },
   {
@@ -146,6 +164,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'OLDY FL',
     username1: 'sebutsajapakpoh',
+    fbUsername1: 'Oldy Saputra',
     status: 'Normal',
   },
   {
@@ -153,6 +172,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'DIMAS OPPO',
     username1: 'ahm.dimasep',
+    fbUsername1: 'Ahmad Dimas Eka',
     status: 'Normal',
   },
   {
@@ -160,6 +180,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'FERY OPPO',
     username1: 'papa_athalla',
+    fbUsername1: 'Fery Papa Athalla',
     status: 'Normal',
   },
   {
@@ -167,6 +188,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'RENDY SAMSUNG',
     username1: 'rxn1st',
+    fbUsername1: 'Rendy Pratama',
     status: 'Normal',
   },
   {
@@ -174,6 +196,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'CINDY SAMSUNG',
     username1: 'cin.dyakbarwm',
+    fbUsername1: 'Cindy Akbar',
     status: 'Normal',
   },
   {
@@ -181,6 +204,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'GEBBY SAMSUNG',
     username1: 'xffbyzz.6',
+    fbUsername1: 'Gebby Maharani',
     status: 'Normal',
   },
   {
@@ -188,6 +212,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'MS, FL & PROMOTOR NGK',
     nama: 'ARIK REALME',
     username1: 'arikprynt',
+    fbUsername1: 'Arik Prayitno',
     status: 'Normal',
   },
 
@@ -199,6 +224,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'BAYU',
     username1: 'bayusukmaaaa',
+    fbUsername1: 'Bayu Sukma',
     status: 'Normal',
   },
   {
@@ -206,6 +232,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'YANTO',
     username1: 'ekotarmidianto',
+    fbUsername1: 'Eko Tarmidianto',
     status: 'Normal',
   },
   {
@@ -213,6 +240,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'AZIZ',
     username1: 'azizfikri28',
+    fbUsername1: 'Aziz Fikri',
     status: 'Normal',
   },
   {
@@ -220,6 +248,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'FANI',
     username1: 'fani_kurniawan80',
+    fbUsername1: 'Fani Kurniawan',
     status: 'Normal',
   },
   {
@@ -227,6 +256,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'NANDA',
     username1: 'nanda_kipz24',
+    fbUsername1: 'Nanda Kipz',
     status: 'Normal',
   },
   {
@@ -234,6 +264,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'SENO',
     username1: 'qodriyah.nur',
+    fbUsername1: 'Seno Nur Qodriyah',
     status: 'Normal',
   },
   {
@@ -241,6 +272,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'ADIT',
     username1: 'adityareich1933',
+    fbUsername1: 'Aditya Reich',
     status: 'Normal',
   },
   {
@@ -248,6 +280,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'RISKI',
     username1: 'riskhy_1101',
+    fbUsername1: 'Riski Hidayat',
     status: 'Normal',
   },
   {
@@ -255,6 +288,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'MUNIR',
     username1: 'munir_murtado',
+    fbUsername1: 'Munir Murtado',
     status: 'Normal',
   },
   {
@@ -262,6 +296,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'JOHAN',
     username1: 'ikijahee',
+    fbUsername1: 'Johan Saputra',
     status: 'Normal',
   },
   {
@@ -269,6 +304,7 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     divisi: 'G1 ELEKT NGK',
     nama: 'RANDI',
     username1: 'errr.and',
+    fbUsername1: 'Randi Pratama',
     status: 'Normal',
   },
 ];

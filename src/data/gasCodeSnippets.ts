@@ -849,12 +849,105 @@ export const INSTAGRAM_CONSOLE_SCRIPT = `(async () => {
     alert(\`✅ SELESAI! \${allUsernames.size} username likers berhasil diekstrak dan otomatis tersalin ke Clipboard!\\n\\nSilakan kembali ke Web App Monitoring dan klik "Tempel dari Clipboard" (atau Ctrl+V).\`);
 })();`;
 
+export const FACEBOOK_CONSOLE_SCRIPT = `(async () => {
+    // 1. Ambil dialog Reactions / Tanggapan paling atas di Facebook Web
+    const dialogs = Array.from(document.querySelectorAll('div[role="dialog"]'));
+    if (dialogs.length === 0) {
+        alert("⚠️ Popup daftar Tanggapan/Like Facebook belum terbuka! Klik ikon/angka 👍 pada postingan Facebook dulu.");
+        return;
+    }
+    const targetDialog = dialogs[dialogs.length - 1];
+
+    function findScroller(root) {
+        let best = null, maxDiff = 0;
+        for (const el of Array.from(root.querySelectorAll('div'))) {
+            const st = window.getComputedStyle(el);
+            if ((st.overflowY === 'auto' || st.overflowY === 'scroll') && el.clientHeight > 80) {
+                const diff = el.scrollHeight - el.clientHeight;
+                if (diff >= maxDiff) { maxDiff = diff; best = el; }
+            }
+        }
+        return best || root;
+    }
+
+    const noise = new Set([
+        'semua','all','tambah jadi teman','tambah teman','add friend',
+        'ikuti','follow','mengikuti','following','kirim pesan','message',
+        'teman','friends','tutup','close','batalkan permintaan','cancel request',
+        'lainnya','more','lihat selengkapnya','see more','suka','super','peduli'
+    ]);
+
+    const foundMap = new Map();
+    let lastTop = -1, unchangedCount = 0, step = 0;
+    console.log("🚀 Sedang auto-scroll & mengekstrak daftar akun Facebook yang like...");
+
+    while (unchangedCount < 6 && step < 75) {
+        const activeDlg = Array.from(document.querySelectorAll('div[role="dialog"]')).pop() || targetDialog;
+        const scroller = findScroller(activeDlg);
+
+        for (const a of Array.from(activeDlg.querySelectorAll('a[href]'))) {
+            const href = a.getAttribute('href') || '';
+            if (!href || href.includes('/groups/') || href.includes('/hashtag/') || href.includes('/watch/') ||
+                href.includes('/photo') || href.includes('/videos/') || href.includes('/stories/') ||
+                href.includes('/events/') || href.includes('comment_id=') || href.includes('/friends/')) continue;
+
+            const txt = (a.innerText || a.textContent || '').replace(/[\\r\\n]+/g, ' ').replace(/\\s+/g, ' ').trim();
+            if (!txt || txt.length < 2 || txt.length > 65) continue;
+            const low = txt.toLowerCase();
+            if (noise.has(low)) continue;
+            if (/^\\d+\\s*(teman bersama|mutual friend)/i.test(low)) continue;
+            if (/^\\d+([.,]\\d+)?\\s*(rb|jt|k|m)?$/i.test(low)) continue;
+
+            let slug = '';
+            try {
+                const full = href.startsWith('http') ? href : ('https://www.facebook.com' + (href.startsWith('/') ? '' : '/') + href);
+                const u = new URL(full);
+                if (u.pathname.includes('profile.php')) {
+                    const pid = u.searchParams.get('id');
+                    if (pid) slug = 'id:' + pid;
+                } else {
+                    const segs = u.pathname.split('/').filter(Boolean);
+                    if (segs[0] === 'people' && segs[2]) slug = 'id:' + segs[2];
+                    else if (segs[0] && segs[0] !== 'people') slug = segs[0].toLowerCase();
+                }
+            } catch (e) {}
+
+            const key = slug || low;
+            if (!foundMap.has(key)) {
+                const val = (slug && !slug.startsWith('id:') && slug !== low.replace(/\\s+/g, ''))
+                    ? \`\${txt} [\${slug}]\`
+                    : txt;
+                foundMap.set(key, val);
+            }
+        }
+
+        scroller.scrollTop += 550;
+        try { scroller.dispatchEvent(new Event('scroll', { bubbles: true })); } catch (e) {}
+        await new Promise(r => setTimeout(r, 800));
+
+        if (scroller.scrollTop === lastTop) unchangedCount++;
+        else { unchangedCount = 0; lastTop = scroller.scrollTop; }
+        step++;
+    }
+
+    const resultText = Array.from(foundMap.values()).join('\\n');
+    console.log(\`✅ SELESAI! Ditemukan total \${foundMap.size} akun Facebook:\\n\`, resultText);
+
+    let copied = false;
+    if (typeof copy === 'function') { try { copy(resultText); copied = true; } catch(e) {} }
+    if (!copied && navigator.clipboard && navigator.clipboard.writeText) {
+        try { await navigator.clipboard.writeText(resultText); copied = true; } catch(e) {}
+    }
+    alert(\`✅ SELESAI! \${foundMap.size} akun Facebook yang like berhasil diekstrak & disalin ke Clipboard!\\n\\nKembali ke Web App, pastikan Saklar di Mode Facebook, lalu klik "Tempel dari Clipboard".\`);
+})();`;
 
 export const SHEETS_TEMPLATE_STRUCTURE = [
-  { column: 'A', header: 'Divisi', sample: 'KASIR', description: 'Nama Departemen/Divisi (contoh: KASIR, PRAMUNIAGA, GUDANG, VM, SPV)' },
-  { column: 'B', header: 'Nama Karyawan', sample: 'Siti Rahmawati', description: 'Nama lengkap karyawan retail yang akan dimunculkan di rekap WhatsApp' },
-  { column: 'C', header: 'Username 1', sample: 'siti_rahma99', description: 'Username akun Instagram utama karyawan (tanpa spasi/simbol)' },
-  { column: 'D', header: 'Username 2', sample: 'sitirahma.real', description: 'Username akun IG kedua/cadangan karyawan (opsional)' },
-  { column: 'E', header: 'Status', sample: 'Normal', description: 'Status kehadiran: Normal, Cuti, Off, Izin, Sakit, HP Hilang (Non-Normal diabaikan dari denda)' },
+  { column: 'A', header: 'Divisi', sample: 'KASIR', description: 'Nama Departemen/Divisi (contoh: KASIR, ADMIN NGK, G1 ELEKT)' },
+  { column: 'B', header: 'Nama Karyawan', sample: 'Siti Rahmawati', description: 'Nama lengkap karyawan retail (1 baris = 1 karyawan, memiliki akun IG & FB)' },
+  { column: 'C', header: 'Username IG 1', sample: 'siti_rahma99', description: 'Username akun Instagram utama karyawan (tanpa spasi/simbol)' },
+  { column: 'D', header: 'Username IG 2', sample: 'sitirahma.real', description: 'Username akun IG kedua/cadangan karyawan (opsional)' },
+  { column: 'E', header: 'Status', sample: 'Normal', description: 'Status kehadiran: Normal, Cuti, Off, Izin, Sakit, HP Hilang, Bebas' },
   { column: 'F', header: 'Keterangan', sample: 'Shift Pagi', description: 'Catatan tambahan seperti jadwal shift, tanggal cuti, dll (opsional)' },
+  { column: 'G', header: 'Username FB 1', sample: 'Siti Rahmawati', description: 'Nama profil Facebook atau username/link profil FB utama karyawan' },
+  { column: 'H', header: 'Username FB 2', sample: 'Siti Rahma II', description: 'Akun Facebook kedua/cadangan karyawan (opsional)' },
 ];

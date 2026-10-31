@@ -10,7 +10,7 @@ import { ExtensionManager } from './components/ExtensionManager';
 import { FontPickerModal } from './components/FontPickerModal';
 import { GlobalMilestonePopup } from './components/GlobalMilestonePopup';
 import { LiveClock } from './components/LiveClock';
-import { Employee, FontFamilyId, FontSizeScale, ThemeMode } from './types';
+import { Employee, FontFamilyId, FontSizeScale, ThemeMode, LikePlatformMode } from './types';
 import { DEFAULT_EMPLOYEES } from './data/defaultEmployees';
 import { FONT_OPTIONS, FONT_SIZE_SCALES } from './data/fontOptions';
 import {
@@ -36,6 +36,7 @@ const LOCAL_STORAGE_KEY_FONT = 'likemonitor_font_family_v1';
 const LOCAL_STORAGE_KEY_SIZE = 'likemonitor_font_size_v1';
 const LOCAL_STORAGE_KEY_COMPACT = 'likemonitor_compact_mode_v1';
 const LOCAL_STORAGE_KEY_THEME = 'likemonitor_theme_mode_v1';
+const LOCAL_STORAGE_KEY_LIKE_PLATFORM = 'likemonitor_like_platform_v1';
 
 const TAB_ORDER: ActiveTab[] = ['rekap', 'desain', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
 
@@ -71,6 +72,26 @@ export default function App() {
     'code-gs' | 'index-html' | 'sheet-template' | 'step-by-step' | 'console-ig'
   >('code-gs');
   const [lastShortcutKey, setLastShortcutKey] = useState<string | null>(null);
+  const [openFbImportSignal, setOpenFbImportSignal] = useState<number>(0);
+
+  // Unified Instagram / Facebook platform mode shared across Rekap, Karyawan, Ekstensi & Script Console
+  const [likePlatform, setLikePlatform] = useState<LikePlatformMode>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY_LIKE_PLATFORM);
+      if (saved === 'facebook' || saved === 'instagram') return saved;
+    } catch {
+      // Fallback
+    }
+    return 'instagram';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY_LIKE_PLATFORM, likePlatform);
+    } catch {
+      // Ignore
+    }
+  }, [likePlatform]);
 
   const handleTabChange = (newTab: ActiveTab) => {
     if (newTab === activeTab) return;
@@ -287,8 +308,8 @@ export default function App() {
   // Tab titles and descriptions for top breadcrumb bar
   const tabInfo: Record<ActiveTab, { title: string; subtitle: string; icon: any; color: string }> = {
     rekap: {
-      title: 'Rekap Like Instagram (Format WA)',
-      subtitle: 'Generator rekap harian WhatsApp otomatis, filter kuota, dan monitoring staff',
+      title: `Rekap Like ${likePlatform === 'facebook' ? 'Facebook' : 'Instagram'} (Format WA)`,
+      subtitle: 'Saklar Mode Instagram & Facebook, deteksi kemiripan nama, dan pelacakan akun non-data',
       icon: MessageSquare,
       color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300',
     },
@@ -305,14 +326,14 @@ export default function App() {
       color: 'text-pink-600 bg-pink-100 dark:bg-pink-950/60 dark:text-pink-300',
     },
     karyawan: {
-      title: 'Database & Status Kuota Karyawan',
-      subtitle: `Kelola ${employees.length} daftar staff, username Instagram, dan kepatuhan kuota like`,
+      title: 'Database Karyawan (Akun Instagram & Facebook)',
+      subtitle: `Kelola ${employees.length} daftar staf tetap — 1 karyawan memiliki kolom akun IG & FB terpisah`,
       icon: Users,
       color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-300',
     },
     extension: {
-      title: 'Ekstensi Chrome & Bookmarklet Otomatis',
-      subtitle: 'Alat bantu otomatis scrape data like postingan Instagram 1-klik',
+      title: 'Ekstensi Chrome v2.0 & Bookmarklet (IG + FB)',
+      subtitle: 'Alat bantu otomatis ekstrak daftar like postingan Instagram & Facebook 1-klik',
       icon: Chrome,
       color: 'text-amber-600 bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300',
     },
@@ -329,8 +350,8 @@ export default function App() {
       color: 'text-purple-600 bg-purple-100 dark:bg-purple-950/60 dark:text-purple-300',
     },
     console: {
-      title: 'Script Console Instagram DevTools',
-      subtitle: 'Kode JavaScript untuk mengambil username like langsung dari browser console',
+      title: 'Script Console DevTools (Instagram & Facebook)',
+      subtitle: 'Kode JavaScript untuk mengambil daftar like IG maupun tanggapan FB dari browser console',
       icon: Terminal,
       color: 'text-rose-600 bg-rose-100 dark:bg-rose-950/60 dark:text-rose-300',
     },
@@ -501,16 +522,23 @@ export default function App() {
               exit="exit"
               className="w-full"
             >
-              {/* TAB 1: REKAP GENERATOR (Primary Work Area) */}
+              {/* TAB 1: REKAP GENERATOR (Primary Work Area - IG & FB Switcher Inside) */}
               {activeTab === 'rekap' && (
                 <RekapGenerator
                   employees={employees}
+                  setEmployees={setEmployees}
                   storeCode={storeCode}
                   setStoreCode={setStoreCode}
                   compactMode={compactMode}
+                  likePlatform={likePlatform}
+                  setLikePlatform={setLikePlatform}
                   onOpenConsoleGuide={handleOpenConsoleGuide}
                   onOpenExtensionGuide={() => handleTabChange('extension')}
                   onOpenEmployeeManager={() => handleTabChange('karyawan')}
+                  onOpenFbImport={() => {
+                    setOpenFbImportSignal((s) => s + 1);
+                    handleTabChange('karyawan');
+                  }}
                   onOpenSosmedReport={() => handleTabChange('sosmed')}
                 />
               )}
@@ -539,6 +567,9 @@ export default function App() {
                   employees={employees}
                   setEmployees={setEmployees}
                   compactMode={compactMode}
+                  likePlatform={likePlatform}
+                  setLikePlatform={setLikePlatform}
+                  openFbImportSignal={openFbImportSignal}
                   onNavigateToRekap={() => handleTabChange('rekap')}
                 />
               )}
@@ -547,23 +578,40 @@ export default function App() {
               {activeTab === 'extension' && (
                 <ExtensionManager
                   compactMode={compactMode}
+                  likePlatform={likePlatform}
+                  setLikePlatform={setLikePlatform}
                   onNavigateToRekap={() => handleTabChange('rekap')}
                 />
               )}
 
               {/* TAB 4: GOOGLE APPS SCRIPT CODE VIEWER */}
               {activeTab === 'code' && (
-                <GasDeployGuide defaultTab="code-gs" compactMode={compactMode} />
+                <GasDeployGuide
+                  defaultTab="code-gs"
+                  compactMode={compactMode}
+                  likePlatform={likePlatform}
+                  setLikePlatform={setLikePlatform}
+                />
               )}
 
               {/* TAB 5: STEP BY STEP DEPLOY GUIDE */}
               {activeTab === 'guide' && (
-                <GasDeployGuide defaultTab="step-by-step" compactMode={compactMode} />
+                <GasDeployGuide
+                  defaultTab="step-by-step"
+                  compactMode={compactMode}
+                  likePlatform={likePlatform}
+                  setLikePlatform={setLikePlatform}
+                />
               )}
 
-              {/* TAB 6: INSTAGRAM CONSOLE HELPER SCRIPT */}
+              {/* TAB 6: INSTAGRAM & FACEBOOK CONSOLE HELPER SCRIPT */}
               {activeTab === 'console' && (
-                <GasDeployGuide defaultTab="console-ig" compactMode={compactMode} />
+                <GasDeployGuide
+                  defaultTab="console-ig"
+                  compactMode={compactMode}
+                  likePlatform={likePlatform}
+                  setLikePlatform={setLikePlatform}
+                />
               )}
             </motion.div>
           </AnimatePresence>

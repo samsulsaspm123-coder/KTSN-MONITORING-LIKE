@@ -6,21 +6,13 @@ import {
   Copy,
   Check,
   X,
-  Sparkles,
-  Users,
   Instagram,
-  CheckCircle2,
   AlertTriangle,
   ZoomIn,
   ZoomOut,
-  Maximize2,
-  Sliders,
-  Share2,
-  FileImage,
-  Layers,
-  ArrowDown
+  ThumbsUp,
 } from 'lucide-react';
-import { LikersProcessResult, Employee } from '../types';
+import { LikersProcessResult, Employee, LikePlatformMode } from '../types';
 
 interface LongScreenshotModalProps {
   isOpen: boolean;
@@ -29,6 +21,7 @@ interface LongScreenshotModalProps {
   employees: Employee[];
   storeCode: string;
   urlPost: string;
+  platform?: LikePlatformMode;
 }
 
 type FilterMode = 'liked_employees' | 'all_likers' | 'penalized_employees';
@@ -38,30 +31,34 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
   isOpen,
   onClose,
   result,
-  employees,
   storeCode,
   urlPost,
+  platform = 'instagram',
 }) => {
+  const activePlatform: LikePlatformMode = result?.platform || platform;
+  const isFb = activePlatform === 'facebook';
+
   const [filterMode, setFilterMode] = useState<FilterMode>('liked_employees');
   const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
   const [includeHeaderBadge, setIncludeHeaderBadge] = useState<boolean>(true);
   const [includeDivisionBadge, setIncludeDivisionBadge] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [copiedImage, setCopiedImage] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [zoomScale, setZoomScale] = useState<number>(0.85);
 
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Derive users to display based on mode
   const displayItems = useMemo(() => {
     if (!result) return [];
 
     if (filterMode === 'liked_employees') {
-      // Only employees that have liked
       return result.allResults
         .filter((item) => item.hasLiked && !item.isExempt)
         .map((item) => ({
-          username: item.employee.username1,
+          username: isFb
+            ? item.matchedUsername || item.employee.fbUsername1 || item.employee.nama
+            : item.matchedUsername || item.employee.username1,
           name: item.employee.nama,
           divisi: item.employee.divisi,
           isEmployee: true,
@@ -71,11 +68,12 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
     }
 
     if (filterMode === 'penalized_employees') {
-      // Employees who haven't liked (Denda)
       return result.allResults
         .filter((item) => item.isPenalized)
         .map((item) => ({
-          username: item.employee.username1,
+          username: isFb
+            ? item.employee.fbUsername1 || item.employee.nama
+            : item.employee.username1,
           name: item.employee.nama,
           divisi: item.employee.divisi,
           isEmployee: true,
@@ -84,7 +82,6 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
         }));
     }
 
-    // All likers (Employees who liked + External users)
     const list: Array<{
       username: string;
       name: string;
@@ -94,12 +91,13 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
       isPenalized: boolean;
     }> = [];
 
-    // Add employees who liked
     result.allResults
       .filter((item) => item.hasLiked)
       .forEach((item) => {
         list.push({
-          username: item.employee.username1,
+          username: isFb
+            ? item.matchedUsername || item.employee.fbUsername1 || item.employee.nama
+            : item.matchedUsername || item.employee.username1,
           name: item.employee.nama,
           divisi: item.employee.divisi,
           isEmployee: true,
@@ -108,12 +106,11 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
         });
       });
 
-    // Add external likers
     if (result.unrecognizedLikers && result.unrecognizedLikers.length > 0) {
       result.unrecognizedLikers.forEach((u) => {
         list.push({
           username: u,
-          name: u,
+          name: isFb ? 'Akun Facebook Publik' : u,
           isEmployee: false,
           status: 'Eksternal',
           isPenalized: false,
@@ -122,19 +119,25 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
     }
 
     return list;
-  }, [result, filterMode]);
+  }, [result, filterMode, isFb]);
 
-  // Color generator for avatar gradients
   const getAvatarGradient = (username: string) => {
-    const gradients = [
-      'from-fuchsia-500 via-rose-500 to-amber-500',
-      'from-purple-600 to-indigo-600',
-      'from-cyan-500 to-blue-600',
-      'from-emerald-500 to-teal-700',
-      'from-rose-500 to-orange-500',
-      'from-violet-600 to-pink-600',
-      'from-blue-600 to-indigo-800'
-    ];
+    const gradients = isFb
+      ? [
+          'from-blue-600 to-indigo-700',
+          'from-sky-500 to-blue-700',
+          'from-indigo-500 to-blue-600',
+          'from-cyan-600 to-blue-700',
+        ]
+      : [
+          'from-fuchsia-500 via-rose-500 to-amber-500',
+          'from-purple-600 to-indigo-600',
+          'from-cyan-500 to-blue-600',
+          'from-emerald-500 to-teal-700',
+          'from-rose-500 to-orange-500',
+          'from-violet-600 to-pink-600',
+          'from-blue-600 to-indigo-800',
+        ];
     let hash = 0;
     for (let i = 0; i < username.length; i++) {
       hash = username.charCodeAt(i) + ((hash << 5) - hash);
@@ -142,23 +145,23 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
     return gradients[Math.abs(hash) % gradients.length];
   };
 
-  // Download long screenshot as PNG
   const handleDownloadPNG = async () => {
     if (!previewContainerRef.current) return;
     setIsExporting(true);
+    setErrorMsg(null);
 
     try {
       const element = previewContainerRef.current;
       const canvas = await html2canvas(element, {
-        scale: 2, // 2x Retina resolution for razor-sharp rendering
+        scale: 2,
         useCORS: true,
-        backgroundColor: themeMode === 'dark' ? '#262626' : '#ffffff',
+        backgroundColor: themeMode === 'dark' ? (isFb ? '#242526' : '#262626') : '#ffffff',
         logging: false,
         windowWidth: 800,
       });
 
       const dateStr = result?.tanggalStr?.replace(/\//g, '-') || new Date().toISOString().slice(0, 10);
-      const fileName = `screenshot-panjang-like-ig-${storeCode.toLowerCase()}-${dateStr}.png`;
+      const fileName = `screenshot-panjang-like-${isFb ? 'fb' : 'ig'}-${storeCode.toLowerCase()}-${dateStr}.png`;
 
       const dataUrl = canvas.toDataURL('image/png');
       const link = document.createElement('a');
@@ -169,41 +172,38 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
       document.body.removeChild(link);
     } catch (err) {
       console.error('Failed to export screenshot PNG:', err);
-      alert('Gagal membuat gambar screenshot panjang. Silakan coba lagi.');
+      setErrorMsg('Gagal membuat gambar screenshot panjang. Silakan coba lagi.');
     } finally {
       setIsExporting(false);
     }
   };
 
-  // Copy long screenshot image directly to clipboard
   const handleCopyImageToClipboard = async () => {
     if (!previewContainerRef.current) return;
     setIsExporting(true);
+    setErrorMsg(null);
 
     try {
       const element = previewContainerRef.current;
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
-        backgroundColor: themeMode === 'dark' ? '#262626' : '#ffffff',
+        backgroundColor: themeMode === 'dark' ? (isFb ? '#242526' : '#262626') : '#ffffff',
         logging: false,
       });
 
       canvas.toBlob(async (blob) => {
-        if (!blob) throw new Error('Blob generation failed');
+        if (!blob) return;
         try {
-          // Write to system clipboard as image
           const item = new ClipboardItem({ 'image/png': blob });
           await navigator.clipboard.write([item]);
           setCopiedImage(true);
           setTimeout(() => setCopiedImage(false), 2500);
-        } catch (clipErr) {
-          console.warn('Clipboard write failed, triggering download instead', clipErr);
-          // Fallback to normal download if browser blocks image clipboard write
+        } catch {
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = url;
-          link.download = `screenshot-panjang-like-${storeCode}.png`;
+          link.download = `screenshot-panjang-like-${isFb ? 'fb' : 'ig'}-${storeCode}.png`;
           link.click();
           URL.revokeObjectURL(url);
           setCopiedImage(true);
@@ -212,7 +212,7 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
       }, 'image/png');
     } catch (err) {
       console.error('Failed to copy screenshot image:', err);
-      alert('Gagal menyalin gambar ke clipboard. Gunakan tombol Download PNG.');
+      setErrorMsg('Gagal menyalin gambar ke clipboard. Gunakan tombol Download PNG.');
     } finally {
       setIsExporting(false);
     }
@@ -223,24 +223,35 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
-        
         {/* Top Header */}
         <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 via-rose-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-pink-500/20">
-              <Camera className="w-5 h-5" />
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md ${
+                isFb
+                  ? 'bg-[#1877F2] shadow-blue-500/20'
+                  : 'bg-gradient-to-tr from-pink-500 via-rose-500 to-indigo-600 shadow-pink-500/20'
+              }`}
+            >
+              {isFb ? <ThumbsUp className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-white tracking-tight">
-                  Screenshot Panjang Otomatis Bukti Like Instagram
+                  Screenshot Panjang Otomatis Bukti Like {isFb ? 'Facebook' : 'Instagram'}
                 </h3>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-pink-500/20 text-pink-300 border border-pink-500/30 uppercase">
-                  100% Mirip IG Asli
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border ${
+                    isFb
+                      ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                      : 'bg-pink-500/20 text-pink-300 border-pink-500/30'
+                  }`}
+                >
+                  {isFb ? 'Mode Facebook' : 'Mode Instagram'}
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Solusi tanpa perlu screen recording di iPhone atau aplikasi pihak ke-3. Siap lampirkan ke laporan!
+                Solusi tanpa screen recording HP atau aplikasi pihak ke-3. Siap dilampirkan ke laporan!
               </p>
             </div>
           </div>
@@ -255,7 +266,6 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
 
         {/* Action & Filter Toolbar */}
         <div className="px-5 py-3 bg-slate-800/60 border-b border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-xs">
-          {/* Filter Mode Selection */}
           <div className="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-700/60">
             <button
               onClick={() => setFilterMode('liked_employees')}
@@ -265,7 +275,7 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Karyawan Sudah Like ({result ? result.allResults.filter(r => r.hasLiked && !r.isExempt).length : 0})
+              Karyawan Sudah Like ({result ? result.allResults.filter((r) => r.hasLiked && !r.isExempt).length : 0})
             </button>
             <button
               onClick={() => setFilterMode('all_likers')}
@@ -289,7 +299,6 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
             </button>
           </div>
 
-          {/* Theme & Layout Toggles */}
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center bg-slate-900/80 p-0.5 rounded-lg border border-slate-700/60">
               <button
@@ -297,18 +306,16 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
                 className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
                   themeMode === 'dark' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
-                title="Persis tampilan Instagram Dark Mode"
               >
-                Dark IG
+                Dark {isFb ? 'FB' : 'IG'}
               </button>
               <button
                 onClick={() => setThemeMode('light')}
                 className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
                   themeMode === 'light' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
-                title="Tampilan Instagram Light Mode"
               >
-                Light IG
+                Light {isFb ? 'FB' : 'IG'}
               </button>
             </div>
 
@@ -333,12 +340,10 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
             </label>
           </div>
 
-          {/* Zoom controls */}
           <div className="flex items-center gap-1">
             <button
               onClick={() => setZoomScale(Math.max(0.5, zoomScale - 0.1))}
               className="p-1.5 bg-slate-900/80 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg cursor-pointer"
-              title="Perkecil Tampilan"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
@@ -348,16 +353,20 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
             <button
               onClick={() => setZoomScale(Math.min(1.2, zoomScale + 0.1))}
               className="p-1.5 bg-slate-900/80 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg cursor-pointer"
-              title="Perbesar Tampilan"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* Center Preview Viewport (Scrollable with Zoom) */}
+        {errorMsg && (
+          <div className="px-5 py-2 bg-rose-950/80 border-b border-rose-800 text-rose-200 text-xs font-medium">
+            {errorMsg}
+          </div>
+        )}
+
+        {/* Center Preview Viewport */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 bg-slate-950/60 flex justify-center custom-scrollbar">
-          
           {displayItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-12 text-center text-slate-400 space-y-3">
               <AlertTriangle className="w-10 h-10 text-amber-400" />
@@ -375,7 +384,6 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
               }}
               className="w-[410px] shrink-0"
             >
-              {/* THE TARGET INSTAGRAM POPUP CONTAINER TO BE CAPTURED */}
               <div
                 ref={previewContainerRef}
                 style={{
@@ -383,27 +391,36 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
                 }}
                 className={`w-[410px] rounded-2xl overflow-hidden shadow-2xl border ${
                   themeMode === 'dark'
-                    ? 'bg-[#262626] text-white border-[#363636]'
+                    ? isFb
+                      ? 'bg-[#242526] text-white border-[#3a3b3c]'
+                      : 'bg-[#262626] text-white border-[#363636]'
                     : 'bg-white text-slate-900 border-slate-200'
                 }`}
               >
-                {/* Optional Official Retail Store Header Badge */}
                 {includeHeaderBadge && (
                   <div
                     className={`px-4 py-2.5 text-center border-b ${
                       themeMode === 'dark'
                         ? 'bg-[#1a1a1a] border-[#333333]'
+                        : isFb
+                        ? 'bg-blue-50 border-blue-100'
                         : 'bg-indigo-50 border-indigo-100'
                     }`}
                   >
                     <div className="flex items-center justify-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
                       <p
                         className={`text-[11px] font-bold uppercase tracking-wider ${
-                          themeMode === 'dark' ? 'text-indigo-400' : 'text-indigo-700'
+                          themeMode === 'dark'
+                            ? isFb
+                              ? 'text-blue-400'
+                              : 'text-indigo-400'
+                            : isFb
+                            ? 'text-blue-700'
+                            : 'text-indigo-700'
                         }`}
                       >
-                        BUKTI SCREENSHOT PANJANG LIKE INSTAGRAM
+                        BUKTI SCREENSHOT PANJANG LIKE {isFb ? 'FACEBOOK' : 'INSTAGRAM'}
                       </p>
                     </div>
                     <p
@@ -411,7 +428,7 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
                         themeMode === 'dark' ? 'text-slate-400' : 'text-slate-600'
                       }`}
                     >
-                      {storeCode} • Tanggal: {result?.tanggalStr || new Date().toLocaleDateString('id-ID')} • Total: {displayItems.length} Likers
+                      {storeCode} • Tanggal: {result?.tanggalStr || new Date().toLocaleDateString('id-ID')} • Total: {displayItems.length} Akun
                     </p>
                     {urlPost && (
                       <p
@@ -425,16 +442,33 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
                   </div>
                 )}
 
-                {/* Authentic Instagram Likes Modal Header */}
+                {/* Modal Header */}
                 <div
                   className={`h-12 px-4 flex items-center justify-between border-b relative select-none ${
                     themeMode === 'dark'
-                      ? 'border-[#363636] bg-[#262626]'
+                      ? isFb
+                        ? 'border-[#3a3b3c] bg-[#242526]'
+                        : 'border-[#363636] bg-[#262626]'
                       : 'border-slate-200 bg-white'
                   }`}
                 >
-                  <div className="w-6" />
-                  <h4 className="font-bold text-base tracking-tight">Likes</h4>
+                  {isFb ? (
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-[#1877F2] border-b-2 border-[#1877F2] py-3">
+                        Semua {displayItems.length}
+                      </span>
+                      <span className="text-xs text-slate-400 flex items-center gap-1">
+                        👍 ❤️
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-6 flex items-center justify-center text-pink-500">
+                        <Instagram className="w-4 h-4" />
+                      </div>
+                      <h4 className="font-bold text-base tracking-tight">Likes</h4>
+                    </>
+                  )}
                   <div
                     className={`w-6 h-6 rounded-full flex items-center justify-center ${
                       themeMode === 'dark' ? 'text-slate-300' : 'text-slate-600'
@@ -444,7 +478,7 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
                   </div>
                 </div>
 
-                {/* List of Likers Rows (Continuous Full Height) */}
+                {/* List of Likers Rows */}
                 <div className="divide-y-0 py-2">
                   {displayItems.map((item, idx) => (
                     <div
@@ -453,18 +487,22 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
                         themeMode === 'dark' ? 'hover:bg-white/5' : 'hover:bg-slate-50'
                       }`}
                     >
-                      {/* Left: Avatar & Info */}
                       <div className="flex items-center gap-3 min-w-0 pr-2">
-                        {/* Circular Avatar */}
-                        <div
-                          className={`w-11 h-11 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-sm bg-gradient-to-tr shadow-xs ${getAvatarGradient(
-                            item.username
-                          )}`}
-                        >
-                          {item.username.slice(0, 2).toUpperCase()}
+                        <div className="relative shrink-0">
+                          <div
+                            className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm bg-gradient-to-tr shadow-xs ${getAvatarGradient(
+                              item.username
+                            )}`}
+                          >
+                            {item.username.slice(0, 2).toUpperCase()}
+                          </div>
+                          {isFb && (
+                            <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#1877F2] text-white text-[9px] flex items-center justify-center ring-2 ring-[#242526]">
+                              👍
+                            </span>
+                          )}
                         </div>
 
-                        {/* Username & Full Name */}
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-semibold text-sm leading-tight truncate">
@@ -492,20 +530,24 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
                         </div>
                       </div>
 
-                      {/* Right: Instagram Follow Button */}
                       <div className="shrink-0">
                         <button
                           type="button"
-                          className="px-4 py-1.5 bg-[#0095f6] hover:bg-[#1877f2] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer select-none"
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition-colors select-none ${
+                            isFb
+                              ? themeMode === 'dark'
+                                ? 'bg-[#3a3b3c] text-slate-200'
+                                : 'bg-slate-200 text-slate-800'
+                              : 'bg-[#0095f6] text-white'
+                          }`}
                         >
-                          Follow
+                          {isFb ? 'Tambah Teman' : 'Follow'}
                         </button>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Footer of the captured modal */}
                 <div
                   className={`px-4 py-3 text-center border-t text-[11px] ${
                     themeMode === 'dark'
@@ -514,7 +556,7 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
                   }`}
                 >
                   <p className="font-medium">
-                    Instagram Likers Monitoring Engine • Total {displayItems.length} Akun
+                    {isFb ? 'Facebook Reactions' : 'Instagram Likers'} Monitoring Engine • Total {displayItems.length} Akun
                   </p>
                 </div>
               </div>
@@ -538,7 +580,6 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
                   ? 'bg-emerald-600 text-white'
                   : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
               }`}
-              title="Salin gambar screenshot panjang langsung ke clipboard agar bisa langsung di-Paste (Ctrl+V) ke WhatsApp"
             >
               {copiedImage ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4 text-indigo-400" />}
               <span>{copiedImage ? 'Gambar Tersalin!' : 'Salin Gambar ke Clipboard'}</span>
@@ -547,7 +588,11 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
             <button
               onClick={handleDownloadPNG}
               disabled={isExporting || displayItems.length === 0}
-              className="flex-1 sm:flex-initial px-5 py-2.5 bg-gradient-to-r from-pink-600 via-rose-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-pink-600/25 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+              className={`flex-1 sm:flex-initial px-5 py-2.5 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 ${
+                isFb
+                  ? 'bg-[#1877F2] hover:bg-blue-700 shadow-blue-600/25'
+                  : 'bg-gradient-to-r from-pink-600 via-rose-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 shadow-pink-600/25'
+              }`}
             >
               {isExporting ? (
                 <>
@@ -563,7 +608,6 @@ export const LongScreenshotModal: React.FC<LongScreenshotModalProps> = ({
             </button>
           </div>
         </div>
-
       </div>
     </div>
   );

@@ -13,24 +13,41 @@ import {
   ExternalLink,
   ChevronRight,
   Layers,
-  Sparkles
+  Instagram,
+  ThumbsUp
 } from 'lucide-react';
 import { 
   GAS_CODE_GS, 
   GAS_INDEX_HTML, 
   INSTAGRAM_CONSOLE_SCRIPT, 
+  FACEBOOK_CONSOLE_SCRIPT,
   SHEETS_TEMPLATE_STRUCTURE 
 } from '../data/gasCodeSnippets';
+import { LikePlatformMode } from '../types';
 
 interface GasDeployGuideProps {
   defaultTab?: 'code-gs' | 'index-html' | 'sheet-template' | 'step-by-step' | 'console-ig';
   compactMode?: boolean;
+  likePlatform?: LikePlatformMode;
+  setLikePlatform?: (mode: LikePlatformMode) => void;
 }
 
-export function GasDeployGuide({ defaultTab = 'code-gs', compactMode = false }: GasDeployGuideProps) {
+export function GasDeployGuide({
+  defaultTab = 'code-gs',
+  likePlatform: externalPlatform,
+  setLikePlatform: setExternalPlatform,
+}: GasDeployGuideProps) {
   const [subTab, setSubTab] = useState<'code-gs' | 'index-html' | 'sheet-template' | 'step-by-step' | 'console-ig'>(
     defaultTab
   );
+  const [localPlatform, setLocalPlatform] = useState<LikePlatformMode>('instagram');
+  const activePlatform = externalPlatform || localPlatform;
+  const isFb = activePlatform === 'facebook';
+
+  const handleSwitchPlatform = (mode: LikePlatformMode) => {
+    if (setExternalPlatform) setExternalPlatform(mode);
+    setLocalPlatform(mode);
+  };
 
   const [copiedCodeGs, setCopiedCodeGs] = useState<boolean>(false);
   const [copiedIndexHtml, setCopiedIndexHtml] = useState<boolean>(false);
@@ -52,9 +69,10 @@ export function GasDeployGuide({ defaultTab = 'code-gs', compactMode = false }: 
     });
   };
 
-  // Copy Console IG script
+  // Copy Console IG/FB script
   const handleCopyConsole = () => {
-    navigator.clipboard.writeText(INSTAGRAM_CONSOLE_SCRIPT).then(() => {
+    const scriptText = isFb ? FACEBOOK_CONSOLE_SCRIPT : INSTAGRAM_CONSOLE_SCRIPT;
+    navigator.clipboard.writeText(scriptText).then(() => {
       setCopiedConsole(true);
       setTimeout(() => setCopiedConsole(false), 2000);
     });
@@ -172,7 +190,7 @@ export function GasDeployGuide({ defaultTab = 'code-gs', compactMode = false }: 
           }`}
         >
           <Terminal className="w-4 h-4 text-slate-800" />
-          <span>5. Script Console IG</span>
+          <span>5. Script Console (IG &amp; FB)</span>
         </button>
       </div>
 
@@ -454,41 +472,76 @@ export function GasDeployGuide({ defaultTab = 'code-gs', compactMode = false }: 
       )}
 
       {/* ========================================================= */}
-      {/* TAB 5: SCRIPT CONSOLE IG                                  */}
+      {/* TAB 5: SCRIPT CONSOLE IG & FB                              */}
       {/* ========================================================= */}
       {subTab === 'console-ig' && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5">
-          <div className="border-b border-slate-100 pb-4">
-            <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
-              <Terminal className="w-5 h-5 text-indigo-600" />
-              <span>Script Console Ekstraksi Likers Instagram Otomatis</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Gunakan script ini di Google Chrome / Edge untuk mengekstrak seluruh username dari modal likers Instagram hanya dalam 1 detik.
-            </p>
+          <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
+                <Terminal className="w-5 h-5 text-indigo-600" />
+                <span>Script Console Ekstraksi Likers {isFb ? 'Facebook' : 'Instagram'} Otomatis</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Pilih saklar mode platform di kanan untuk menyalin kode Console DevTools sesuai postingan yang sedang dicek.
+              </p>
+            </div>
+
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleSwitchPlatform('instagram')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                  !isFb ? 'bg-pink-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Instagram className="w-3.5 h-3.5" />
+                <span>Mode IG</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSwitchPlatform('facebook')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                  isFb ? 'bg-[#1877F2] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ThumbsUp className="w-3.5 h-3.5" />
+                <span>Mode FB</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              <span className="font-bold text-slate-900 block mb-1">1. Buka Modal Likers</span>
-              <p className="text-slate-600 text-[11px]">Buka postingan di Instagram Web, lalu klik jumlah "Likes/Suka".</p>
+              <span className="font-bold text-slate-900 block mb-1">
+                1. {isFb ? 'Buka Tanggapan FB' : 'Buka Modal Likers IG'}
+              </span>
+              <p className="text-slate-600 text-[11px]">
+                {isFb
+                  ? 'Buka postingan di Facebook Web, lalu klik angka/ikon Like (👍❤️) hingga popup orang muncul.'
+                  : 'Buka postingan di Instagram Web, lalu klik jumlah "Likes/Suka".'}
+              </p>
             </div>
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               <span className="font-bold text-slate-900 block mb-1">2. Buka DevTools (F12)</span>
               <p className="text-slate-600 text-[11px]">Tekan <strong>F12</strong> &gt; klik tab <strong>Console</strong>.</p>
             </div>
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              <span className="font-bold text-slate-900 block mb-1">3. Paste & Enter</span>
-              <p className="text-slate-600 text-[11px]">Paste kode di bawah ini lalu tekan Enter. Likers langsung tersalin ke clipboard!</p>
+              <span className="font-bold text-slate-900 block mb-1">3. Paste &amp; Enter</span>
+              <p className="text-slate-600 text-[11px]">Paste kode di bawah ini lalu tekan Enter. Daftar akun langsung tersalin ke clipboard!</p>
             </div>
           </div>
 
           <div className="bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
             <div className="px-4 py-2.5 bg-slate-900 flex items-center justify-between border-b border-slate-800">
-              <span className="text-xs font-mono text-slate-300 font-semibold">instagram-extractor.js</span>
+              <span className="text-xs font-mono text-slate-300 font-semibold">
+                {isFb ? 'facebook-reactions-extractor.js' : 'instagram-likers-extractor.js'}
+              </span>
               <button
                 onClick={handleCopyConsole}
-                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1 cursor-pointer transition-all"
+                className={`px-3 py-1 text-white rounded-lg text-xs font-semibold flex items-center space-x-1 cursor-pointer transition-all ${
+                  isFb ? 'bg-[#1877F2] hover:bg-blue-700' : 'bg-indigo-600 hover:bg-indigo-700'
+                }`}
               >
                 {copiedConsole ? (
                   <>
@@ -498,13 +551,15 @@ export function GasDeployGuide({ defaultTab = 'code-gs', compactMode = false }: 
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Salin Script Console</span>
+                    <span>Salin Script Console {isFb ? 'FB' : 'IG'}</span>
                   </>
                 )}
               </button>
             </div>
             <div className="p-4 text-emerald-400 font-mono text-xs overflow-x-auto custom-scrollbar select-all">
-              <pre className="whitespace-pre leading-relaxed">{INSTAGRAM_CONSOLE_SCRIPT}</pre>
+              <pre className="whitespace-pre leading-relaxed">
+                {isFb ? FACEBOOK_CONSOLE_SCRIPT : INSTAGRAM_CONSOLE_SCRIPT}
+              </pre>
             </div>
           </div>
         </div>
