@@ -163,5 +163,31 @@ export interface RecapKontenItem {
   updatedAt: number;
 }
 
+// ==========================================
+// INSTAGRAM FEED & CAROUSEL PLANNER TYPES
+// ==========================================
+export type IgGridRatio = '1:1' | '4:5';
+
+export interface IgFeedItem {
+  id: string;
+  imageDataUrl: string; // aggressively compressed base64 JPEG/WebP
+  thumbnailUrl?: string;
+  fileSizeBytes: number; // to monitor storage
+  title: string; // e.g. "Sepeda Listrik Goda Lemon"
+  bodyCaption: string; // Isi utama postingan
+  category: 'sepeda_listrik' | 'handphone' | 'elektronik' | 'promo_kredit' | 'custom';
+  tagsInput: string; // e.g. "sepeda listrik, goda indonesia, goda sunray"
+  customHashtags?: string; // e.g. "#sepedalistrik #godaindonesia"
+  isCarousel?: boolean; // carousel multi-slide indicator
+  carouselSlideCount?: number;
+  postDate?: string;
+  postTimeSlot?: string;
+  status: 'draft' | 'ready' | 'posted';
+  order: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+
 
 

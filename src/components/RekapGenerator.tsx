@@ -37,6 +37,7 @@ import {
   Link2,
   Upload,
   RotateCcw,
+  Grid,
 } from 'lucide-react';
 import {
   Employee,
@@ -84,6 +85,7 @@ interface RekapGeneratorProps {
   onOpenExtensionGuide?: () => void;
   onOpenEmployeeManager: () => void;
   onOpenFbImport?: () => void;
+  onOpenFeedPlanner?: () => void;
   onOpenSosmedReport?: () => void;
 }
 
@@ -99,6 +101,7 @@ export function RekapGenerator({
   onOpenExtensionGuide,
   onOpenEmployeeManager,
   onOpenFbImport,
+  onOpenFeedPlanner,
   onOpenSosmedReport,
 }: RekapGeneratorProps) {
   // Unified Platform Switcher (Saklar Pembeda Mode Instagram vs Mode Facebook)
@@ -583,7 +586,7 @@ export function RekapGenerator({
         'christinn.df',
         'tiaraindrianip',
         'fitria_ran',
-        'desyaldita',
+        'desyaldita_', // Contoh kemiripan username: 'desyaldita' vs 'desyaldita_' (fuzzy match Levenshtein)
         'oktafianshinta',
         'ftr.aay',
         'aistialqur_',
@@ -954,6 +957,19 @@ export function RekapGenerator({
               <Camera className="w-3.5 h-3.5" />
               <span>Screenshot Panjang {isFb ? 'FB' : 'IG'}</span>
             </button>
+
+            {onOpenFeedPlanner && (
+              <button
+                type="button"
+                onClick={onOpenFeedPlanner}
+                className="px-3.5 py-2 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-lg text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                title="Buka perencana tampilan Feed & Carousel Instagram 3 Kolom"
+              >
+                <Grid className="w-3.5 h-3.5" />
+                <span>Feed &amp; Carousel</span>
+                <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-mono">3x3</span>
+              </button>
+            )}
 
             {onOpenSosmedReport && (
               <button

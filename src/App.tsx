@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { RekapGenerator } from './components/RekapGenerator';
+import { InstagramFeedPlanner } from './components/InstagramFeedPlanner';
 import { DailyDesignGenerator } from './components/DailyDesignGenerator';
 import { RecapKontenManager } from './components/RecapKontenManager';
 import { EmployeeManager } from './components/EmployeeManager';
@@ -27,7 +28,8 @@ import {
   Maximize2,
   Moon,
   Sun,
-  Film
+  Film,
+  Grid
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY_EMPLOYEES = 'likemonitor_employees_v1';
@@ -38,7 +40,7 @@ const LOCAL_STORAGE_KEY_COMPACT = 'likemonitor_compact_mode_v1';
 const LOCAL_STORAGE_KEY_THEME = 'likemonitor_theme_mode_v1';
 const LOCAL_STORAGE_KEY_LIKE_PLATFORM = 'likemonitor_like_platform_v1';
 
-const TAB_ORDER: ActiveTab[] = ['rekap', 'desain', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
+const TAB_ORDER: ActiveTab[] = ['rekap', 'feed', 'desain', 'sosmed', 'karyawan', 'extension', 'code', 'guide', 'console'];
 
 // Fast, lightweight Motion Variants: crisp GPU translate & opacity without expensive blur filters
 const tabVariants = {
@@ -313,6 +315,12 @@ export default function App() {
       icon: MessageSquare,
       color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300',
     },
+    feed: {
+      title: 'Perencanaan Feed & Carousel Instagram (Grid 3 Kolom)',
+      subtitle: 'Drag & Drop susunan foto/carousel, kompresi gambar maksimal hemat storage, caption & footer toko',
+      icon: Grid,
+      color: 'text-pink-600 bg-pink-100 dark:bg-pink-950/60 dark:text-pink-300',
+    },
     desain: {
       title: 'Planning Aktifitas Harian & Jadwal Desain',
       subtitle: 'Format WA Planning Diselipkan Jadwal Desain • Mode Polos & Ceklist',
@@ -539,7 +547,16 @@ export default function App() {
                     setOpenFbImportSignal((s) => s + 1);
                     handleTabChange('karyawan');
                   }}
+                  onOpenFeedPlanner={() => handleTabChange('feed')}
                   onOpenSosmedReport={() => handleTabChange('sosmed')}
+                />
+              )}
+
+              {/* TAB: INSTAGRAM FEED & CAROUSEL PLANNER (3-COLUMN DRAG & DROP + COMPRESSED STORAGE + CAPTION FOOTER) */}
+              {activeTab === 'feed' && (
+                <InstagramFeedPlanner
+                  storeCode={storeCode}
+                  compactMode={compactMode}
                 />
               )}
 

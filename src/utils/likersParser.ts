@@ -370,6 +370,7 @@ function evaluateLikerAgainstEmployee(
   // Build candidate reference fields from Employee
   const targets: Array<{
     label: string;
+    rawHandle?: string;
     phrase: string;
     compact: string;
     source: 'fbUsername' | 'igUsername' | 'employeeName';
@@ -401,11 +402,26 @@ function evaluateLikerAgainstEmployee(
   if (emp.username1) {
     const uClean = normalizeUsername(emp.username1);
     const uLetters = uClean.replace(/[._\d]+/g, '');
-    if (uLetters.length >= 3) {
+    if (uClean.length >= 2) {
       targets.push({
         label: `@${emp.username1}`,
+        rawHandle: uClean,
         phrase: uClean.replace(/[._]+/g, ' ').trim(),
-        compact: uLetters,
+        compact: uLetters || uClean,
+        source: 'igUsername',
+      });
+    }
+  }
+
+  if (emp.username2) {
+    const uClean2 = normalizeUsername(emp.username2);
+    const uLetters2 = uClean2.replace(/[._\d]+/g, '');
+    if (uClean2.length >= 2) {
+      targets.push({
+        label: `@${emp.username2} (Cadangan)`,
+        rawHandle: uClean2,
+        phrase: uClean2.replace(/[._]+/g, ' ').trim(),
+        compact: uLetters2 || uClean2,
         source: 'igUsername',
       });
     }
@@ -442,13 +458,34 @@ function evaluateLikerAgainstEmployee(
       likerCompact.length >= 5 &&
       (likerCompact.includes(target.compact) || target.compact.includes(likerCompact));
 
+    const normLikerHandle = normalizeUsername(likerRaw);
+    const handleSim = (target as any).rawHandle
+      ? stringSimilarity(normLikerHandle, (target as any).rawHandle)
+      : 0;
+
+    // Direct check for handle variations (e.g. 'budi_id' vs 'budi_id_', trailing underscores, single dot)
+    const isDirectHandleVariation =
+      (target as any).rawHandle &&
+      (normLikerHandle.startsWith((target as any).rawHandle) ||
+        (target as any).rawHandle.startsWith(normLikerHandle) ||
+        normLikerHandle.replace(/[._]/g, '') === (target as any).rawHandle.replace(/[._]/g, '')) &&
+      Math.abs(normLikerHandle.length - (target as any).rawHandle.length) <= 3;
+
     // Determine if this pair is similar enough to even consider
-    const maxRawSim = Math.max(compactSim, phraseSim);
-    if (matchedPairs.length === 0 && maxRawSim < 0.76 && !hasStrongCompactContainment) {
+    const maxRawSim = Math.max(compactSim, phraseSim, handleSim);
+    if (
+      matchedPairs.length === 0 &&
+      maxRawSim < 0.74 &&
+      !hasStrongCompactContainment &&
+      !isDirectHandleVariation
+    ) {
       continue;
     }
 
     let score = Math.round(maxRawSim * 100);
+    if (isDirectHandleVariation && score < 88) {
+      score = 90;
+    }
     let conflictLevel: SimilarLikerConflictLevel = 'needs_check';
     let reason = '';
     const sharedToken = matchedPairs[0]?.tt || target.compact;
@@ -494,14 +531,18 @@ function evaluateLikerAgainstEmployee(
       const extraWords = likerTokens.filter((t) => t !== matchedPairs[0].lt).join(' ');
       reason = `Kata "${matchedPairs[0].lt}" sama dengan ${target.label}, namun ada nama tambahan "${extraWords}" — pastikan bukan orang lain yang namanya kebetulan sama.`;
     }
-    // CASE 3: Compact / full string is nearly identical (typo / punctuation / IG handle matches FB full name)
-    else if (maxRawSim >= 0.86 || (compactSim === 1 && target.compact.length >= 5)) {
-      score = Math.max(score, Math.round(maxRawSim * 100));
+    // CASE 3: Compact / full string or handle is nearly identical (typo / punctuation e.g. budi_id vs budi_id_)
+    else if (isDirectHandleVariation || maxRawSim >= 0.84 || (compactSim === 1 && target.compact.length >= 4)) {
+      score = Math.max(score, isDirectHandleVariation ? 92 : Math.round(maxRawSim * 100));
       conflictLevel = score >= 90 ? 'likely_same' : 'needs_check';
-      reason =
-        target.source === 'igUsername'
-          ? `Nama akun sangat mirip dengan username IG karyawan (${target.label}).`
-          : `Penulisan nama sangat mirip (${score}%) dengan data ${target.label}.`;
+      if (isDirectHandleVariation) {
+        reason = `Username "${normLikerHandle}" sangat mirip (${score}%) dengan ${target.label} (hanya beda simbol/akhiran seperti '_' atau '.'). Disarankan gabungkan data jika benar milik ${emp.nama}.`;
+      } else {
+        reason =
+          target.source === 'igUsername'
+            ? `Nama akun sangat mirip (${score}%) dengan username IG karyawan (${target.label}).`
+            : `Penulisan nama sangat mirip (${score}%) dengan data ${target.label}.`;
+      }
     }
     // CASE 4: Substring handle containment (e.g. "bintiandini" inside "bintiandini99")
     else if (hasStrongCompactContainment) {

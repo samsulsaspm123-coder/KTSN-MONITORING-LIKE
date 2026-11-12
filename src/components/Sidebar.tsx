@@ -14,13 +14,14 @@ import {
   Palette,
   Moon,
   Sun,
-  Film
+  Film,
+  Grid,
 } from 'lucide-react';
 import { ThemeMode } from '../types';
 import { AppLogo } from './AppLogo';
 import { LocalStorageGauge } from './LocalStorageGauge';
 
-export type ActiveTab = 'rekap' | 'desain' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
+export type ActiveTab = 'rekap' | 'feed' | 'desain' | 'sosmed' | 'karyawan' | 'extension' | 'code' | 'guide' | 'console';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -62,6 +63,18 @@ export function Sidebar({
       inactiveBorder: 'border-slate-200/80 hover:bg-emerald-50/70 dark:border-slate-800 dark:hover:bg-slate-800/60',
       badge: 'IG•FB',
       badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800',
+    },
+    {
+      id: 'feed' as ActiveTab,
+      label: 'Feed & Carousel IG',
+      subtitle: 'Grid 3 Kolom & Caption Toko',
+      icon: Grid,
+      activeBg: 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-xs',
+      activeIconBg: 'bg-white/20 text-white',
+      inactiveIconBg: 'bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300',
+      inactiveBorder: 'border-slate-200/80 hover:bg-pink-50/70 dark:border-slate-800 dark:hover:bg-slate-800/60',
+      badge: 'FEED 3x3',
+      badgeClass: 'bg-pink-100 text-pink-900 border border-pink-300 font-bold dark:bg-pink-950/80 dark:text-pink-300 dark:border-pink-800',
     },
     {
       id: 'desain' as ActiveTab,
