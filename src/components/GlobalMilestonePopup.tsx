@@ -1,367 +1,154 @@
-import { useState, useEffect, useMemo } from 'react';
-import {
-  Clock,
-  AlertTriangle,
-  BellRing,
-  Send,
-  Sparkles,
-  Zap,
-  Volume2,
-  VolumeX,
-  X,
-  ArrowRight,
-  ShieldAlert,
-  Flame,
-  CheckCircle2,
-  ExternalLink,
-  ChevronUp,
-  ChevronDown,
-  Share2
-} from 'lucide-react';
-import { ActiveTab } from './Navbar';
+import { useEffect, useState } from 'react';
+import { BellRing, ChevronDown, ChevronUp, Copy, Share2, ShieldAlert, X } from 'lucide-react';
+import { toMinutes, useMilestoneSettings } from '../lib/milestoneSettings';
 
 interface GlobalMilestonePopupProps {
-  activeTab: ActiveTab;
+  activeTab?: string;
   onNavigateToSosmed: () => void;
   storeName?: string;
   onCopyReport?: () => void;
 }
 
 export type MilestoneTimeMode = 'live' | 'test-1530' | 'test-1540' | 'test-1615' | 'test-overdue';
+type Phase = 'idle' | 'reminder' | 'overdue';
 
-export function GlobalMilestonePopup({
-  activeTab,
-  onNavigateToSosmed,
-  storeName = 'MEGA KTSN',
-  onCopyReport,
-}: GlobalMilestonePopupProps) {
-  const [timeMode, setTimeMode] = useState<MilestoneTimeMode>('live');
-  const [simulatedDate, setSimulatedDate] = useState<Date>(new Date());
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
-  const [isMinimized, setIsMinimized] = useState<boolean>(false);
-  const [isDismissedForSession, setIsDismissedForSession] = useState<boolean>(false);
+const pad = (n: number) => String(n).padStart(2, '0');
 
-  // Live timer tick (10s in background to save battery & RAM, 1s when test mode)
+function formatRemaining(sec: number) {
+  if (sec >= 3600) return `${Math.floor(sec / 3600)} j ${Math.floor((sec % 3600) / 60)} m`;
+  return `${pad(Math.floor(sec / 60))}:${pad(sec % 60)}`;
+}
+
+export function GlobalMilestonePopup({ onNavigateToSosmed, onCopyReport }: GlobalMilestonePopupProps) {
+  const s = useMilestoneSettings();
+  const [now, setNow] = useState(() => new Date());
+  const [preview, setPreview] = useState<Phase | null>(null);
+  const [minimized, setMinimized] = useState(false);
+  const [dismissed, setDismissed] = useState<Phase | null>(null);
+
+  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const deadlineMin = toMinutes(s.deadline);
+
+  let livePhase: Phase = 'idle';
+  if (nowMin >= deadlineMin) livePhase = 'overdue';
+  else if (nowMin >= toMinutes(s.reminder)) livePhase = 'reminder';
+  const phase = preview ?? livePhase;
+  const active = s.enabled && phase !== 'idle';
+
+  // Detik berjalan hanya saat popup tampil, selain itu cek tiap 20 detik
   useEffect(() => {
-    const intervalMs = timeMode === 'live' ? 5000 : 1000;
-    const timer = setInterval(() => {
-      if (timeMode === 'live') {
-        setSimulatedDate(new Date());
-      } else {
-        setSimulatedDate((prev) => new Date(prev.getTime() + 1000));
-      }
-    }, intervalMs);
+    const id = setInterval(() => setNow(new Date()), active ? 1000 : 20000);
+    return () => clearInterval(id);
+  }, [active]);
 
-    return () => clearInterval(timer);
-  }, [timeMode]);
-
-  // Set test simulation times
-  const handleSetTestTime = (mode: MilestoneTimeMode) => {
-    setTimeMode(mode);
-    setIsDismissedForSession(false);
-    setIsMinimized(false);
-    const now = new Date();
-    if (mode === 'live') {
-      setSimulatedDate(now);
-    } else if (mode === 'test-1530') {
-      const d = new Date(now);
-      d.setHours(15, 32, 0);
-      setSimulatedDate(d);
-    } else if (mode === 'test-1540') {
-      const d = new Date(now);
-      d.setHours(15, 45, 0);
-      setSimulatedDate(d);
-    } else if (mode === 'test-1615') {
-      const d = new Date(now);
-      d.setHours(16, 10, 0);
-      setSimulatedDate(d);
-    } else if (mode === 'test-overdue') {
-      const d = new Date(now);
-      d.setHours(16, 20, 0);
-      setSimulatedDate(d);
-    }
-  };
-
-  // Helper sound chime
-  const playAlertChime = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.25); // A5
-      gain.gain.setValueAtTime(0.18, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.5);
-    } catch {
-      // Ignore
-    }
-  };
-
-  // Sound trigger on phase change
   useEffect(() => {
-    if (soundEnabled && (timeMode === 'test-1540' || timeMode === 'test-overdue')) {
-      playAlertChime();
-    }
-  }, [timeMode, soundEnabled]);
+    setNow(new Date());
+  }, [s.reminder, s.deadline]);
 
-  const hours = simulatedDate.getHours();
-  const minutes = simulatedDate.getMinutes();
-  const seconds = simulatedDate.getSeconds();
-  const totalMinutesNow = hours * 60 + minutes + seconds / 60;
+  // Tombol "Coba" di pengaturan
+  useEffect(() => {
+    const onPreview = (e: Event) => {
+      setPreview((e as CustomEvent<Phase>).detail);
+      setDismissed(null);
+      setMinimized(false);
+    };
+    window.addEventListener('milestone-preview', onPreview);
+    return () => window.removeEventListener('milestone-preview', onPreview);
+  }, []);
 
-  // Key Milestones in minutes from midnight
-  const M_15_30 = 15 * 60 + 30; // 930 min (Post Terakhir Tayang)
-  const M_15_40 = 15 * 60 + 40; // 940 min (Laporan Web App Harus Sudah Lengkap)
-  const M_16_15 = 16 * 60 + 15; // 975 min (DEADLINE Laporan Masuk Grup WA)
+  // Fase baru = popup muncul lagi dalam ukuran penuh
+  useEffect(() => {
+    setMinimized(false);
+  }, [phase]);
 
-  // Status calculation
-  const isPostTerakhirPassed = totalMinutesNow >= M_15_30; // >= 15:30
-  const isWebReportReminderActive = totalMinutesNow >= M_15_40 && totalMinutesNow < M_16_15; // 15:40 - 16:15
-  const isDeadlinePassed = totalMinutesNow >= M_16_15; // >= 16:15
+  if (!s.enabled || phase === 'idle' || dismissed === phase) return null;
 
-  // Should show popup? Triggered when 15:40 or 16:15 milestone is reached
-  const isMilestoneAlertActive = isWebReportReminderActive || isDeadlinePassed;
+  const overdue = phase === 'overdue';
+  const remaining = formatRemaining(Math.max(0, Math.round((deadlineMin - nowMin) * 60)));
+  const clock = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
-  // Format countdown string
-  const formatCountdown = (targetMinutes: number) => {
-    const diffSeconds = Math.round((targetMinutes - totalMinutesNow) * 60);
-    if (diffSeconds <= 0) return '00:00';
-    const m = Math.floor(diffSeconds / 60);
-    const s = diffSeconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const close = () => {
+    if (preview) setPreview(null);
+    else setDismissed(phase);
   };
 
-  const countdownTo1615 = useMemo(() => formatCountdown(M_16_15), [totalMinutesNow]);
-
-  const timeFormatted = `${hours.toString().padStart(2, '0')}:${minutes
-    .toString()
-    .padStart(2, '0')}:${seconds.toString().padStart(2, '0')} WIB`;
-
-  // If dismissed or not active, return null
-  if (!isMilestoneAlertActive || isDismissedForSession) {
-    return null;
-  }
-
-  // Phase Definition
-  const isOverdue = isDeadlinePassed;
+  const dot = overdue ? 'bg-rose-500' : 'bg-amber-500';
+  const chip = overdue
+    ? 'bg-rose-50 text-rose-800 border-rose-200'
+    : 'bg-amber-50 text-amber-800 border-amber-200';
 
   return (
-    <aside aria-label="Pengingat Milestone Posting" className="fixed bottom-4 right-4 z-50 max-w-lg w-[calc(100vw-2rem)] sm:w-auto transition-all duration-300 animate-in fade-in slide-in-from-bottom-5">
-      {/* ========================================================= */}
-      {/* MINIMIZED FLOATING PILL                                    */}
-      {/* ========================================================= */}
-      {isMinimized ? (
-        <div
-          onClick={() => setIsMinimized(false)}
-          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-2xl border cursor-pointer backdrop-blur-md transition-all hover:scale-105 ${
-            isOverdue
-              ? 'bg-rose-900/95 text-white border-rose-400 shadow-rose-900/50 animate-pulse'
-              : 'bg-amber-900/95 text-white border-amber-400 shadow-amber-900/50'
-          }`}
-          title="Klik untuk membuka pengingat laporan lengkap"
+    <aside
+      aria-label="Pengingat laporan harian"
+      className="fixed bottom-20 right-4 z-50 w-[calc(100vw-2rem)] sm:w-[360px]"
+    >
+      {minimized ? (
+        <button
+          type="button"
+          onClick={() => setMinimized(false)}
+          className="ml-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-md cursor-pointer"
         >
-          <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-          <span className="text-xs font-black tracking-wide">
-            {isOverdue ? '🚨 DEADLINE 16:15 WA TERLEWATI!' : '⏰ 15:40 PENGINGAT LAPORAN WEB APP'}
-          </span>
-          <span className="font-mono text-[11px] bg-black/40 px-2 py-0.5 rounded-full">
-            {timeFormatted}
-          </span>
-          <ChevronUp className="w-4 h-4 text-amber-300 ml-1" />
-        </div>
+          <span className={`h-2 w-2 rounded-full ${dot}`} />
+          {overdue ? `Lewat deadline ${s.deadline}` : `Deadline ${s.deadline} · ${remaining}`}
+          <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
+        </button>
       ) : (
-        /* ========================================================= */
-        /* FULL EXPANDED POPUP CARD (HIGH CONTRAST & VISIBILITY)     */
-        /* ========================================================= */
-        <div
-          className={`rounded-2xl p-4.5 sm:p-5 shadow-2xl border transition-all ${
-            isOverdue
-              ? 'bg-gradient-to-br from-rose-950 via-slate-900 to-red-950 text-white border-rose-500 shadow-rose-950/60 ring-2 ring-rose-500/50'
-              : 'bg-gradient-to-br from-amber-950 via-slate-900 to-orange-950 text-white border-amber-400 shadow-amber-950/60 ring-2 ring-amber-400/50'
-          }`}
-        >
-          {/* Header Row: Live Clock + Urgent Title + Control Buttons */}
-          <div className="flex items-start justify-between gap-3 pb-3 border-b border-white/10">
-            <div className="flex items-center gap-2.5">
-              <div
-                className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 shadow-sm ${
-                  isOverdue
-                    ? 'bg-rose-600 text-white animate-bounce'
-                    : 'bg-amber-400 text-amber-950 animate-pulse'
-                }`}
-              >
-                {isOverdue ? <ShieldAlert className="w-5 h-5" /> : <BellRing className="w-5 h-5" />}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-lg">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${chip}`}>
+                {overdue ? <ShieldAlert className="h-4 w-4" /> : <BellRing className="h-4 w-4" />}
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
-                      isOverdue
-                        ? 'bg-rose-500 text-white'
-                        : 'bg-amber-400 text-amber-950'
-                    }`}
-                  >
-                    {isOverdue ? '🚨 DEADLINE 16:15 WA' : '⚠️ PENGINGAT 15:40 WEB APP'}
-                  </span>
-                  <span className="font-mono text-xs font-bold text-slate-300">
-                    {timeFormatted}
-                  </span>
-                </div>
-                <h3 className="text-sm sm:text-base font-extrabold text-white mt-0.5 leading-snug">
-                  {isOverdue
-                    ? 'Laporan Wajib Masuk ke Grup WhatsApp!'
-                    : 'Laporan Web App Harus Sudah Lengkap!'}
+                <h3 className="text-sm font-semibold leading-snug text-slate-900">
+                  {overdue ? 'Laporan harus masuk grup WhatsApp' : 'Laporan web app harus sudah lengkap'}
                 </h3>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                  {overdue
+                    ? `Sudah lewat ${s.deadline}. Kirim rekap postingan ke grup WhatsApp sekarang.`
+                    : `Post terakhir tayang ${s.lastPost}. Lengkapi data di web app sebelum deadline ${s.deadline}.`}
+                </p>
               </div>
             </div>
-
-            {/* Right Header Buttons: Sound, Minimize, Close */}
-            <div className="flex items-center gap-1 shrink-0 text-slate-400">
-              <button
-                type="button"
-                onClick={() => {
-                  setSoundEnabled(!soundEnabled);
-                  if (!soundEnabled) playAlertChime();
-                }}
-                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-                title={soundEnabled ? 'Matikan nada dering' : 'Aktifkan nada dering'}
-              >
-                {soundEnabled ? (
-                  <Volume2 className="w-4 h-4 text-amber-300" />
-                ) : (
-                  <VolumeX className="w-4 h-4" />
-                )}
+            <div className="flex shrink-0 items-center text-slate-400">
+              <button type="button" onClick={() => setMinimized(true)} title="Kecilkan" className="rounded-lg p-1.5 hover:bg-slate-100 cursor-pointer">
+                <ChevronDown className="h-4 w-4" />
               </button>
-
-              <button
-                type="button"
-                onClick={() => setIsMinimized(true)}
-                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-                title="Kecilkan (Minimize) pengingat ke pojok"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsDismissedForSession(true)}
-                className="p-1.5 hover:text-rose-300 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-                title="Tutup pengingat sementara"
-              >
-                <X className="w-4 h-4" />
+              <button type="button" onClick={close} title="Tutup" className="rounded-lg p-1.5 hover:bg-slate-100 cursor-pointer">
+                <X className="h-4 w-4" />
               </button>
             </div>
           </div>
 
-          {/* Description & Deadline Countdown Info */}
-          <div className="mt-3 text-xs text-slate-200 leading-relaxed bg-black/30 p-3 rounded-xl border border-white/5 space-y-1.5">
-            <p>
-              {isOverdue ? (
-                <span className="text-rose-300 font-bold">
-                  ⚠️ Jam sudah melewati 16:15 WIB. Rekap 7 postingan sosmed dan link WAJIB segera dikirim ke Grup WhatsApp sekarang agar tidak terlambat.
-                </span>
-              ) : (
-                <span>
-                  ⏰ <b>10 Menit pasca post terakhir (15:30) tayang:</b> Seluruh data 7 postingan di web app harus sudah lengkap terisi sebelum deadline masuk grup WA pada <b>16:15 WIB</b>.
-                </span>
-              )}
-            </p>
-            
-            <div className="flex items-center justify-between text-[11px] pt-1 text-slate-400">
-              <span>Sisa Waktu Menuju Deadline 16:15:</span>
-              <span
-                className={`font-mono font-black px-2 py-0.5 rounded ${
-                  isOverdue
-                    ? 'bg-rose-600 text-white'
-                    : 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
-                }`}
-              >
-                {isOverdue ? 'LEWAT DEADLINE' : `-${countdownTo1615}`}
-              </span>
-            </div>
+          <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <span>{overdue ? 'Sekarang' : `Menuju deadline ${s.deadline}`}</span>
+            <span className={`rounded-md border px-2 py-0.5 font-mono font-semibold ${chip}`}>
+              {overdue ? clock : `-${remaining}`}
+            </span>
           </div>
 
-          {/* Time Simulation Tester Bar inside Popup */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/5">
-            <span className="text-slate-400 font-medium">Uji Waktu Simulasi:</span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => handleSetTestTime('live')}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                  timeMode === 'live'
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                }`}
-              >
-                Real-time
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSetTestTime('test-1540')}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                  timeMode === 'test-1540'
-                    ? 'bg-amber-400 text-amber-950 font-black'
-                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                }`}
-              >
-                15:45 (Alert 15:40)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSetTestTime('test-overdue')}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                  timeMode === 'test-overdue'
-                    ? 'bg-rose-600 text-white font-black'
-                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                }`}
-              >
-                16:20 (Deadline)
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Action Buttons */}
-          <div className="mt-3.5 pt-3 border-t border-white/10 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => {
                 onNavigateToSosmed();
-                setIsMinimized(true);
+                setMinimized(true);
               }}
-              className="flex-1 min-w-[160px] px-3.5 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-pink-500 via-rose-500 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 text-white transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+              className="flex flex-1 min-w-[150px] items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 cursor-pointer"
             >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>Buka Laporan Sosmed (7 Post)</span>
-              <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+              <Share2 className="h-3.5 w-3.5" />
+              Buka laporan sosmed
             </button>
-
             {onCopyReport && (
               <button
                 type="button"
                 onClick={onCopyReport}
-                className="px-3 py-2 rounded-xl text-xs font-bold bg-white/15 hover:bg-white/25 text-white transition-all cursor-pointer border border-white/20 flex items-center gap-1"
-                title="Salin rekap postingan harian langsung ke clipboard"
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
-                <Zap className="w-3.5 h-3.5 text-amber-300" />
-                <span>Salin Rekap</span>
+                <Copy className="h-3.5 w-3.5" />
+                Salin rekap
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => setIsMinimized(true)}
-              className="px-2.5 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/15 text-slate-300 transition-all cursor-pointer"
-            >
-              Nanti Saja
-            </button>
           </div>
         </div>
       )}

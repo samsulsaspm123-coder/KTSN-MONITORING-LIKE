@@ -1,0 +1,75 @@
+/* Tema warna + tampilan minimalis. Diimpor setelah index.css. */
+
+/* ---------- Tampilan lebih tenang ---------- */
+.shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { --tw-shadow: 0 6px 20px rgb(15 23 42 / 0.07) !important; }
+.shadow-sm, .shadow-xs, .shadow-2xs { --tw-shadow: 0 1px 2px rgb(15 23 42 / 0.04) !important; }
+.font-black, .font-extrabold { font-weight: 700; }
+html:not(.dark) .bg-slate-50 { background-color: #f9fafb; }
+html:not(.dark) .border-slate-200 { border-color: #eceff3; }
+
+/* ---------- Tema warna (menggantikan indigo, purple, pink) ---------- */
+html[data-accent] { --a1: #6366d1; --a2: #7e5bc4; --a3: #c0508a; }
+html[data-accent="green"] { --a1: #2b805c; --a2: #557d2d; --a3: #25827f; }
+html[data-accent="red"] { --a1: #c8484d; --a2: #b45a22; --a3: #a0710e; }
+html[data-accent="blue"] { --a1: #3f74cc; --a2: #2279b5; --a3: #1d7f90; }
+
+html[data-accent] {
+  --color-indigo-50: color-mix(in oklab, var(--a1) 8%, white);
+  --color-indigo-100: color-mix(in oklab, var(--a1) 15%, white);
+  --color-indigo-200: color-mix(in oklab, var(--a1) 28%, white);
+  --color-indigo-300: color-mix(in oklab, var(--a1) 45%, white);
+  --color-indigo-400: color-mix(in oklab, var(--a1) 65%, white);
+  --color-indigo-500: color-mix(in oklab, var(--a1) 82%, white);
+  --color-indigo-600: var(--a1);
+  --color-indigo-700: color-mix(in oklab, var(--a1) 82%, black);
+  --color-indigo-800: color-mix(in oklab, var(--a1) 66%, black);
+  --color-indigo-900: color-mix(in oklab, var(--a1) 50%, black);
+  --color-indigo-950: color-mix(in oklab, var(--a1) 36%, black);
+  --color-purple-50: color-mix(in oklab, var(--a2) 8%, white);
+  --color-purple-100: color-mix(in oklab, var(--a2) 15%, white);
+  --color-purple-200: color-mix(in oklab, var(--a2) 28%, white);
+  --color-purple-300: color-mix(in oklab, var(--a2) 45%, white);
+  --color-purple-400: color-mix(in oklab, var(--a2) 65%, white);
+  --color-purple-500: color-mix(in oklab, var(--a2) 82%, white);
+  --color-purple-600: var(--a2);
+  --color-purple-700: color-mix(in oklab, var(--a2) 82%, black);
+  --color-purple-800: color-mix(in oklab, var(--a2) 66%, black);
+  --color-purple-900: color-mix(in oklab, var(--a2) 50%, black);
+  --color-purple-950: color-mix(in oklab, var(--a2) 36%, black);
+  --color-pink-50: color-mix(in oklab, var(--a3) 8%, white);
+  --color-pink-100: color-mix(in oklab, var(--a3) 15%, white);
+  --color-pink-200: color-mix(in oklab, var(--a3) 28%, white);
+  --color-pink-300: color-mix(in oklab, var(--a3) 45%, white);
+  --color-pink-400: color-mix(in oklab, var(--a3) 65%, white);
+  --color-pink-500: color-mix(in oklab, var(--a3) 82%, white);
+  --color-pink-600: var(--a3);
+  --color-pink-700: color-mix(in oklab, var(--a3) 82%, black);
+  --color-pink-800: color-mix(in oklab, var(--a3) 66%, black);
+  --color-pink-900: color-mix(in oklab, var(--a3) 50%, black);
+  --color-pink-950: color-mix(in oklab, var(--a3) 36%, black);
+}
+
+/* ---------- Mode gelap mengikuti warna tema ---------- */
+html.dark[data-accent] .bg-indigo-50,
+html.dark[data-accent] .bg-indigo-50\/60,
+html.dark[data-accent] .bg-indigo-50\/70,
+html.dark[data-accent] .bg-indigo-50\/80 {
+  background-color: color-mix(in oklab, var(--a1) 18%, transparent) !important;
+  border-color: color-mix(in oklab, var(--a1) 35%, transparent) !important;
+}
+html.dark[data-accent] .text-indigo-900,
+html.dark[data-accent] .text-indigo-950 { color: var(--color-indigo-200) !important; }
+html.dark[data-accent] .text-indigo-800,
+html.dark[data-accent] .text-indigo-700 { color: var(--color-indigo-300) !important; }
+
+/* ---------- Menu sidebar ---------- */
+.nav-item { color: #475569; }
+.nav-item:hover { background: rgb(15 23 42 / 0.04); }
+.nav-item[data-active="true"] {
+  background: color-mix(in oklab, var(--color-indigo-600, #6366d1) 10%, transparent);
+  color: var(--color-indigo-700, #4f46e5);
+  font-weight: 600;
+}
+html.dark .nav-item { color: #94a3b8; }
+html.dark .nav-item:hover { background: rgb(255 255 255 / 0.05); }
+html.dark .nav-item[data-active="true"] { color: var(--color-indigo-300, #a5b4fc); }
