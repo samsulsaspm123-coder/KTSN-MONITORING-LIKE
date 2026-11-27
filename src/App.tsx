@@ -10,6 +10,7 @@ import { GasDeployGuide } from './components/GasDeployGuide';
 import { ExtensionManager } from './components/ExtensionManager';
 import { FontPickerModal } from './components/FontPickerModal';
 import { GlobalMilestonePopup } from './components/GlobalMilestonePopup';
+import { SettingsDock } from './components/SettingsDock';
 import { LiveClock } from './components/LiveClock';
 import { Employee, FontFamilyId, FontSizeScale, ThemeMode, LikePlatformMode } from './types';
 import { DEFAULT_EMPLOYEES } from './data/defaultEmployees';
@@ -643,6 +644,7 @@ export default function App() {
 
         {/* Floating Quick Action Widgets (Bottom Right: Theme Switcher & Font Picker) */}
         <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2">
+          <SettingsDock />
           {/* Quick Floating Theme Switcher */}
           <button
             id="floating-btn-theme-toggle"
